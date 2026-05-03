@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 export const revalidate = 300; // ISR: revalidate every 5 minutes
 
 export async function generateStaticParams() {
-  return ['bitcoin', 'ethereum', 'solana'].map(slug => ({ slug: `${slug}-price-prediction-2026` }));
+  return ['bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano'].map(slug => ({ slug: `${slug}-price-prediction-2026` }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

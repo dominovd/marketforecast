@@ -16,9 +16,16 @@ export default function Footer() {
           <div>
             <h4 className="text-sm font-medium text-white mb-3">Markets</h4>
             <div className="space-y-2">
-              {['Bitcoin', 'Ethereum', 'Solana', 'Gold', 'Silver', 'Oil'].map(a => (
-                <Link key={a} href={`/${a === 'Gold' || a === 'Silver' || a === 'Oil' ? 'commodities' : 'crypto'}/${a.toLowerCase()}-price-prediction-2026`}
-                  className="block text-sm" style={{ color: '#64748b' }}>{a} Price Prediction 2026</Link>
+              {[
+                { name: 'Bitcoin', cat: 'crypto' }, { name: 'Ethereum', cat: 'crypto' },
+                { name: 'Solana', cat: 'crypto' }, { name: 'XRP', cat: 'crypto' },
+                { name: 'BNB', cat: 'crypto' }, { name: 'Cardano', cat: 'crypto' },
+                { name: 'Gold', cat: 'commodities' }, { name: 'Silver', cat: 'commodities' },
+                { name: 'Oil', cat: 'commodities' }, { name: 'Natural Gas', cat: 'commodities' },
+                { name: 'Copper', cat: 'commodities' },
+              ].map(a => (
+                <Link key={a.name} href={`/${a.cat}/${a.name.toLowerCase().replace(' ', '')}-price-prediction-2026`}
+                  className="block text-sm" style={{ color: '#64748b' }}>{a.name} Price Prediction 2026</Link>
               ))}
             </div>
           </div>

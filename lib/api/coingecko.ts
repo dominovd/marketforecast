@@ -5,6 +5,9 @@ const COIN_IDS: Record<string, string> = {
   bitcoin: 'bitcoin',
   ethereum: 'ethereum',
   solana: 'solana',
+  xrp: 'ripple',
+  bnb: 'binancecoin',
+  cardano: 'cardano',
 };
 
 export interface CoinPrice {

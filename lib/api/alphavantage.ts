@@ -5,10 +5,14 @@ const SYMBOLS: Record<string, string> = {
   gold: 'XAU',
   silver: 'XAG',
   oil: 'WTI',
+  naturalgas: 'NATURAL_GAS',
+  copper: 'COPPER',
 };
 
-// Alpha Vantage uses forex endpoint for metals, energy for oil
+// Alpha Vantage uses forex endpoint for metals, energy for oil/gas, commodity for copper
 const FOREX_METALS = ['gold', 'silver'];
+const ENERGY_COMMODITIES = ['oil', 'naturalgas'];
+const AV_COMMODITIES = ['copper'];
 
 export interface CommodityPrice {
   price: number;
@@ -44,9 +48,22 @@ export async function getCommodityHistory(slug: string, days: number): Promise<P
 
   let timeSeries: Record<string, Record<string, string>>;
 
-  if (slug === 'oil') {
-    // WTI crude oil — use BRENT/WTI energy endpoint
-    const data = await fetchAV({ function: 'WTI', interval: 'daily' });
+  if (ENERGY_COMMODITIES.includes(slug)) {
+    // WTI / Natural Gas — use Alpha Vantage energy endpoints
+    const fn = slug === 'oil' ? 'WTI' : 'NATURAL_GAS';
+    const data = await fetchAV({ function: fn, interval: 'daily' });
+    const points: { date: string; value: string }[] = data?.data ?? [];
+    return points
+      .slice(0, days)
+      .reverse()
+      .map(p => ({
+        date: new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        price: parseFloat(p.value),
+      }))
+      .filter(p => !isNaN(p.price));
+  } else if (AV_COMMODITIES.includes(slug)) {
+    // Copper via COPPER endpoint
+    const data = await fetchAV({ function: 'COPPER', interval: 'daily' });
     const points: { date: string; value: string }[] = data?.data ?? [];
     return points
       .slice(0, days)

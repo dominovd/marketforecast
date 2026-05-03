@@ -19,6 +19,28 @@ const FEEDS: Record<string, { url: string; source: string }[]> = {
     { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?category=tech', source: 'CoinDesk' },
     { url: 'https://cointelegraph.com/rss/tag/ethereum', source: 'CoinTelegraph' },
   ],
+  xrp: [
+    { url: 'https://cointelegraph.com/rss/tag/xrp', source: 'CoinTelegraph' },
+    { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?category=markets', source: 'CoinDesk' },
+  ],
+  bnb: [
+    { url: 'https://cointelegraph.com/rss/tag/bnb', source: 'CoinTelegraph' },
+    { url: 'https://decrypt.co/feed', source: 'Decrypt' },
+  ],
+  cardano: [
+    { url: 'https://cointelegraph.com/rss/tag/cardano', source: 'CoinTelegraph' },
+    { url: 'https://decrypt.co/feed', source: 'Decrypt' },
+  ],
+  naturalgas: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+    { url: 'https://oilprice.com/rss/main', source: 'OilPrice' },
+  ],
+  copper: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
+  ],
+  solana: [
+  ],
   solana: [
     { url: 'https://cointelegraph.com/rss/tag/solana', source: 'CoinTelegraph' },
     { url: 'https://decrypt.co/feed', source: 'Decrypt' },
@@ -86,9 +108,14 @@ function isRelated(title: string, keyword: string): boolean {
     bitcoin: ['btc', 'crypto', 'cryptocurrency', 'blockchain', 'etf', 'microstrategy'],
     ethereum: ['eth', 'defi', 'erc-20', 'layer 2', 'l2', 'pectra'],
     solana: ['sol', 'solana', 'dex', 'firedancer'],
+    xrp: ['xrp', 'ripple', 'odl', 'cross-border', 'sec'],
+    bnb: ['bnb', 'binance', 'bsc', 'bnb chain'],
+    cardano: ['cardano', 'ada', 'iohk', 'midnight', 'chang'],
     gold: ['gold', 'xau', 'precious metal', 'central bank'],
     silver: ['silver', 'xag', 'solar', 'precious metal'],
     oil: ['oil', 'crude', 'opec', 'wti', 'brent', 'energy'],
+    naturalgas: ['natural gas', 'lng', 'natgas', 'gas price', 'energy'],
+    copper: ['copper', 'hg', 'mining', 'electric vehicle', 'ev', 'green energy'],
   };
   return (related[keyword] || []).some(kw => title.includes(kw));
 }

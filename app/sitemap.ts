@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 const BASE = 'https://marketforecast.io';
 
-const CRYPTO_SLUGS = ['bitcoin', 'ethereum', 'solana'];
-const COMMODITY_SLUGS = ['gold', 'silver', 'oil'];
+const CRYPTO_SLUGS = ['bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano'];
+const COMMODITY_SLUGS = ['gold', 'silver', 'oil', 'naturalgas', 'copper'];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

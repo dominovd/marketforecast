@@ -11,20 +11,26 @@ import { getCoinPrice, getCoinHistory, getCoinPriceArray } from '@/lib/api/coing
 // Commodity-specific imports
 import { getCommodityPrice, getCommodityHistory, getCommodityPriceArray } from '@/lib/api/alphavantage';
 
-const CRYPTO_SLUGS = ['bitcoin', 'ethereum', 'solana'];
-const COMMODITY_SLUGS = ['gold', 'silver', 'oil'];
+const CRYPTO_SLUGS = ['bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano'];
+const COMMODITY_SLUGS = ['gold', 'silver', 'oil', 'naturalgas', 'copper'];
 
 const AFFILIATES: Record<string, { name: string; url: string; label: string }[]> = {
   bitcoin: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/BTC_USDT', label: 'Buy BTC on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/bitcoin', label: 'Buy on Coinbase' }],
   ethereum: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/ETH_USDT', label: 'Buy ETH on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/ethereum', label: 'Buy on Coinbase' }],
   solana: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/SOL_USDT', label: 'Buy SOL on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/solana', label: 'Buy on Coinbase' }],
+  xrp: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/XRP_USDT', label: 'Buy XRP on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/xrp', label: 'Buy on Coinbase' }],
+  bnb: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/BNB_USDT', label: 'Buy BNB on Binance' }, { name: 'KuCoin', url: 'https://www.kucoin.com/trade/BNB-USDT', label: 'Buy on KuCoin' }],
+  cardano: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/ADA_USDT', label: 'Buy ADA on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/cardano', label: 'Buy on Coinbase' }],
   gold: [{ name: 'eToro', url: 'https://www.etoro.com/markets/gold', label: 'Trade Gold on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/gold', label: 'Trade on XTB' }],
   silver: [{ name: 'eToro', url: 'https://www.etoro.com/markets/silver', label: 'Trade Silver on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/silver', label: 'Trade on XTB' }],
   oil: [{ name: 'eToro', url: 'https://www.etoro.com/markets/oil', label: 'Trade Oil on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/crude-oil', label: 'Trade on XTB' }],
+  naturalgas: [{ name: 'eToro', url: 'https://www.etoro.com/markets/natgas', label: 'Trade Nat Gas on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/natural-gas', label: 'Trade on XTB' }],
+  copper: [{ name: 'eToro', url: 'https://www.etoro.com/markets/copper', label: 'Trade Copper on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/copper', label: 'Trade on XTB' }],
 };
 
 const ICONS: Record<string, string> = {
-  bitcoin: '₿', ethereum: 'Ξ', solana: '◎', gold: '🥇', silver: '🥈', oil: '🛢️',
+  bitcoin: '₿', ethereum: 'Ξ', solana: '◎', xrp: '✕', bnb: '◈', cardano: '₳',
+  gold: '🥇', silver: '🥈', oil: '🛢️', naturalgas: '🔥', copper: '🔶',
 };
 
 export type AssetWithHistory = Asset & {
@@ -136,11 +142,21 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
 }
 
 function formatName(slug: string): string {
-  const names: Record<string, string> = { bitcoin: 'Bitcoin', ethereum: 'Ethereum', solana: 'Solana', gold: 'Gold', silver: 'Silver', oil: 'Crude Oil' };
+  const names: Record<string, string> = {
+    bitcoin: 'Bitcoin', ethereum: 'Ethereum', solana: 'Solana',
+    xrp: 'XRP', bnb: 'BNB', cardano: 'Cardano',
+    gold: 'Gold', silver: 'Silver', oil: 'Crude Oil',
+    naturalgas: 'Natural Gas', copper: 'Copper',
+  };
   return names[slug] || slug;
 }
 
 function formatSymbol(slug: string): string {
-  const symbols: Record<string, string> = { bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL', gold: 'XAU/USD', silver: 'XAG/USD', oil: 'WTI' };
+  const symbols: Record<string, string> = {
+    bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL',
+    xrp: 'XRP', bnb: 'BNB', cardano: 'ADA',
+    gold: 'XAU/USD', silver: 'XAG/USD', oil: 'WTI',
+    naturalgas: 'NATGAS', copper: 'HG/USD',
+  };
   return symbols[slug] || slug.toUpperCase();
 }
