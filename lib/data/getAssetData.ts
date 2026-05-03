@@ -81,7 +81,7 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
     // AI analysis (cached 24h separately)
     const aiAnalysis = await getAIAnalysis(slug, {
       name: slug.charAt(0).toUpperCase() + slug.slice(1),
-      symbol: prices.marketCap ? '' : slug.toUpperCase(),
+      symbol: formatSymbol(slug),
       price: prices.price,
       change24h: prices.change24h,
       change7d: prices.change7d,
