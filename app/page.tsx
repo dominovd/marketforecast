@@ -1,5 +1,21 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ASSETS, ALL_ASSETS_LIST } from '@/data/mock-assets';
+
+export const metadata: Metadata = {
+  title: 'MarketForecast — AI-Powered Price Predictions for Crypto & Commodities 2026',
+  description: 'Data-driven price analysis and AI-generated market forecasts for Bitcoin, Ethereum, Solana, Gold, Silver, and Oil. Real-time indicators, scenario analysis, and latest news. Not financial advice.',
+  alternates: {
+    canonical: 'https://marketforecast.io',
+  },
+  openGraph: {
+    title: 'MarketForecast — AI Price Predictions 2026',
+    description: 'AI-powered market forecasts for top crypto and commodities. Real-time data, technical indicators, and scenario analysis.',
+    url: 'https://marketforecast.io',
+    siteName: 'MarketForecast',
+    type: 'website',
+  },
+};
 
 function ChangeChip({ value }: { value: number }) {
   const up = value >= 0;
