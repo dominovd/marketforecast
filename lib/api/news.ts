@@ -40,8 +40,6 @@ const FEEDS: Record<string, { url: string; source: string }[]> = {
     { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
   ],
   solana: [
-  ],
-  solana: [
     { url: 'https://cointelegraph.com/rss/tag/solana', source: 'CoinTelegraph' },
     { url: 'https://decrypt.co/feed', source: 'Decrypt' },
   ],
