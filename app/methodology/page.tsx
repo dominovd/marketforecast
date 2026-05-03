@@ -16,18 +16,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function SourceCard({ name, type, url, description }: { name: string; type: string; url: string; description: string }) {
-  return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-white font-medium">{name}</span>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">{type}</span>
-      </div>
-      <p className="text-slate-400 text-sm mb-2">{description}</p>
-      <a href={url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-sm hover:underline">{url}</a>
-    </div>
-  );
-}
 
 function IndicatorRow({ name, formula, interpretation }: { name: string; formula: string; interpretation: string }) {
   return (
@@ -62,35 +50,6 @@ export default function MethodologyPage() {
           This platform is designed for informational and educational purposes. It presents data and model-generated
           analysis — not investment advice. See the <a href="#disclaimer" className="text-cyan-400 hover:underline">disclaimer section</a> below.
         </p>
-      </Section>
-
-      <Section title="Data Sources">
-        <div className="grid gap-3">
-          <SourceCard
-            name="CoinGecko"
-            type="Crypto prices"
-            url="https://www.coingecko.com/en/api"
-            description="Real-time and historical price data for Bitcoin, Ethereum, and Solana. Provides OHLC candles, market cap, and 24h volume. Free public API, updated every 5 minutes."
-          />
-          <SourceCard
-            name="Alpha Vantage"
-            type="Commodity prices"
-            url="https://www.alphavantage.co"
-            description="Daily OHLC price data for Gold (XAU/USD), Silver (XAG/USD), and WTI Crude Oil via FX and energy endpoints. Free tier with 25 requests/day, cached for 24 hours."
-          />
-          <SourceCard
-            name="Alternative.me Fear & Greed Index"
-            type="Market sentiment"
-            url="https://alternative.me/crypto/fear-and-greed-index/"
-            description="Composite sentiment index for the crypto market (0–100 scale). Aggregates volatility, market momentum, social media, and Bitcoin dominance signals."
-          />
-          <SourceCard
-            name="RSS News Feeds"
-            type="News"
-            url="https://www.coindesk.com"
-            description="Latest news headlines from CoinDesk, CoinTelegraph, Decrypt (crypto) and Reuters, Kitco, OilPrice.com (commodities). Sentiment classified automatically as positive, negative, or neutral."
-          />
-        </div>
       </Section>
 
       <Section title="Technical Indicators">
@@ -157,25 +116,6 @@ export default function MethodologyPage() {
             are not backtested, do not account for unknown future events, and should not be treated as forecasts
             with quantified accuracy. They represent one possible interpretation of the current technical picture.
           </p>
-        </div>
-      </Section>
-
-      <Section title="Update Frequency">
-        <div className="grid sm:grid-cols-2 gap-3">
-          {[
-            { label: 'Crypto prices', freq: 'Every 5 minutes', note: 'Via ISR revalidation' },
-            { label: 'Commodity prices', freq: 'Every 24 hours', note: 'Alpha Vantage free tier limit' },
-            { label: 'Fear & Greed Index', freq: 'Every hour', note: 'Daily index, updated at midnight UTC' },
-            { label: 'News headlines', freq: 'Every hour', note: 'Cached in Redis' },
-            { label: 'AI analysis', freq: 'Every 7 days', note: 'Cached in Redis per asset' },
-            { label: 'Technical indicators', freq: 'On every page load', note: 'Computed from latest prices' },
-          ].map(item => (
-            <div key={item.label} className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-              <p className="text-white text-sm font-medium">{item.label}</p>
-              <p className="text-cyan-400 text-sm">{item.freq}</p>
-              <p className="text-slate-500 text-xs mt-0.5">{item.note}</p>
-            </div>
-          ))}
         </div>
       </Section>
 
