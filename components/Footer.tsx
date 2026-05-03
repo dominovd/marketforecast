@@ -34,6 +34,7 @@ export default function Footer() {
             <div className="space-y-2">
               <Link href="/methodology" className="block text-sm" style={{ color: '#64748b' }}>How Our Analysis Works</Link>
               <Link href="/about" className="block text-sm" style={{ color: '#64748b' }}>About</Link>
+              <Link href="/about#contact" className="block text-sm" style={{ color: '#64748b' }}>Contact</Link>
             </div>
           </div>
         </div>
