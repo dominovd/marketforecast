@@ -117,7 +117,7 @@ export async function getAIAnalysis(slug: string, ctx: AssetContext): Promise<AI
   }
 
   // Cache for 24 hours
-  await setCached(cacheKey, analysis, 86400);
+  await setCached(cacheKey, analysis, 604800); // 7 days
 
   return analysis;
 }

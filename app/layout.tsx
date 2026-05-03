@@ -6,6 +6,9 @@ import Footer from "@/components/Footer";
 export const metadata: Metadata = {
   title: "MarketForecast — AI-Powered Price Analysis",
   description: "Data-driven price analysis for crypto and commodities. AI-generated market scenarios. Not financial advice.",
+  verification: {
+    google: "TbbwdzDQV28NH5Lx5wIlFV-TvPMtzptHA0_5LbpqXbc",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
