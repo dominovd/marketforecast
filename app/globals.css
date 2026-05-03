@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #080b14;
+  --card: #0f1623;
+  --card-border: #1e2a3a;
+  --foreground: #f0f4ff;
+  --muted: #64748b;
+  --accent: #3b82f6;
+  --green: #10b981;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+  --purple: #8b5cf6;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.card {
+  background-color: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+}
+
+.badge-up { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); border-radius: 9999px; padding: 2px 8px; display: inline-flex; align-items: center; }
+.badge-down { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); border-radius: 9999px; padding: 2px 8px; display: inline-flex; align-items: center; }
+.badge-neutral { background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); border-radius: 9999px; padding: 2px 8px; display: inline-flex; align-items: center; }
+.badge-uptrend { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); border-radius: 9999px; padding: 2px 8px; display: inline-flex; align-items: center; }
+.badge-downtrend { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); border-radius: 9999px; padding: 2px 8px; display: inline-flex; align-items: center; }
+.badge-sideways { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); border-radius: 9999px; padding: 2px 8px; display: inline-flex; align-items: center; }
+.badge-chaotic { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); border-radius: 9999px; padding: 2px 8px; display: inline-flex; align-items: center; }
