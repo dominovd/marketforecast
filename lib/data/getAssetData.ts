@@ -62,6 +62,8 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
   // If we can't even get the current price → fall back to a graceful surface.
   // Prefer the hand-curated ASSETS mock for the 11 original slugs (richer copy);
   // for newly-added slugs, build a minimal placeholder from registry meta.
+  // CRITICAL: do NOT write the placeholder to Redis — otherwise a transient
+  // CoinGecko 429 locks the page in placeholder mode for the full 5min TTL.
   if (pricesR.status !== 'fulfilled') {
     console.error(`[getAssetData] Critical: price fetch failed for ${slug}:`, pricesR.reason);
     const handCurated = ASSETS[slug];
