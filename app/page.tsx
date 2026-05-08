@@ -99,7 +99,7 @@ export default function HomePage() {
           </span>
         </div>
         <div className="card overflow-hidden">
-          <div className="grid grid-cols-12 px-4 py-3 text-xs font-medium" style={{ color: '#475569', borderBottom: '1px solid #1e2a3a' }}>
+          <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 px-4 py-3 text-xs font-medium" style={{ color: '#475569', borderBottom: '1px solid #1e2a3a' }}>
             <div className="col-span-4">Asset</div>
             <div className="col-span-2 text-right">Price</div>
             <div className="col-span-2 text-right">24h</div>
@@ -110,7 +110,7 @@ export default function HomePage() {
             const href = `/crypto/${asset.slug}-price-prediction-2026`;
             return (
               <Link key={asset.slug} href={href}
-                className="grid grid-cols-12 px-4 py-4 items-center hover:bg-white/[0.02] transition-all"
+                className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 px-4 py-4 items-center hover:bg-white/[0.02] transition-all"
                 style={{ borderBottom: i < cryptoAssets.length - 1 ? '1px solid #1e2a3a' : 'none' }}>
                 <div className="col-span-4 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl"
@@ -149,7 +149,7 @@ export default function HomePage() {
           </span>
         </div>
         <div className="card overflow-hidden">
-          <div className="grid grid-cols-12 px-4 py-3 text-xs font-medium" style={{ color: '#475569', borderBottom: '1px solid #1e2a3a' }}>
+          <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 px-4 py-3 text-xs font-medium" style={{ color: '#475569', borderBottom: '1px solid #1e2a3a' }}>
             <div className="col-span-4">Asset</div>
             <div className="col-span-2 text-right">Price</div>
             <div className="col-span-2 text-right">24h</div>
@@ -160,7 +160,7 @@ export default function HomePage() {
             const href = `/commodities/${asset.slug}-price-prediction-2026`;
             return (
               <Link key={asset.slug} href={href}
-                className="grid grid-cols-12 px-4 py-4 items-center hover:bg-white/[0.02] transition-all"
+                className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 px-4 py-4 items-center hover:bg-white/[0.02] transition-all"
                 style={{ borderBottom: i < commodityAssets.length - 1 ? '1px solid #1e2a3a' : 'none' }}>
                 <div className="col-span-4 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl"
