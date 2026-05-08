@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ASSETS, ALL_ASSETS_LIST } from '@/data/mock-assets';
+import { CRYPTO_REGISTRY, COMMODITY_REGISTRY } from '@/data/asset-registry';
 
 export const metadata: Metadata = {
   title: 'MarketForecast — AI-Powered Price Predictions for Crypto & Commodities 2026',
@@ -32,26 +33,15 @@ function RegimeLabel({ regime }: { regime: string }) {
   return <span className={`${cls} text-xs px-2 py-0.5 rounded-full`}>{labels[regime] || regime}</span>;
 }
 
-function MiniSparkline({ change }: { change: number }) {
-  const up = change >= 0;
-  const points = Array.from({ length: 12 }, (_, i) => {
-    const noise = (Math.sin(i * 2.3 + change) + Math.random() * 0.4) * 10;
-    return 30 - (i / 11) * change * 0.8 + noise;
-  });
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const norm = points.map(p => ((p - min) / (max - min)) * 30 + 5);
-  const d = norm.map((y, i) => `${i === 0 ? 'M' : 'L'} ${(i / 11) * 80} ${40 - y}`).join(' ');
-  return (
-    <svg width="80" height="40" viewBox="0 0 80 40">
-      <path d={d} fill="none" stroke={up ? '#10b981' : '#ef4444'} strokeWidth="1.5" />
-    </svg>
-  );
-}
-
 export default function HomePage() {
   const cryptoAssets = ALL_ASSETS_LIST.filter(a => a.category === 'crypto').map(a => ASSETS[a.slug]);
   const commodityAssets = ALL_ASSETS_LIST.filter(a => a.category === 'commodity').map(a => ASSETS[a.slug]);
+
+  // Slugs registered but not yet hand-curated — surface as a directory
+  // so Google can crawl and index them.
+  const featuredSlugs = new Set(ALL_ASSETS_LIST.map(a => a.slug));
+  const moreCrypto = CRYPTO_REGISTRY.filter(a => !featuredSlugs.has(a.slug));
+  const moreCommodity = COMMODITY_REGISTRY.filter(a => !featuredSlugs.has(a.slug));
 
   const totalMarketCap = '$2.8T';
   const btcDominance = '58.4%';
@@ -103,7 +93,7 @@ export default function HomePage() {
       {/* Crypto Section */}
       <section id="crypto" className="mb-12">
         <div className="flex items-center gap-3 mb-6">
-          <h2 className="text-xl font-bold text-white">Cryptocurrency Predictions 2026</h2>
+          <h2 className="text-xl font-bold text-white">Featured Cryptocurrency Predictions 2026</h2>
           <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#1e2a3a', color: '#64748b' }}>
             {cryptoAssets.length} assets
           </span>
@@ -153,7 +143,7 @@ export default function HomePage() {
       {/* Commodities Section */}
       <section id="commodities" className="mb-12">
         <div className="flex items-center gap-3 mb-6">
-          <h2 className="text-xl font-bold text-white">Commodities Price Forecast 2026</h2>
+          <h2 className="text-xl font-bold text-white">Featured Commodities Forecast 2026</h2>
           <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#1e2a3a', color: '#64748b' }}>
             {commodityAssets.length} assets
           </span>
@@ -198,12 +188,70 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Full asset directory — gives Google internal links to every registered page */}
+      {(moreCrypto.length > 0 || moreCommodity.length > 0) && (
+        <section id="all-assets" className="mb-12">
+          <div className="flex items-center gap-3 mb-6">
+            <h2 className="text-xl font-bold text-white">Browse All Asset Forecasts</h2>
+            <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#1e2a3a', color: '#64748b' }}>
+              {moreCrypto.length + moreCommodity.length} more assets
+            </span>
+          </div>
+
+          {moreCrypto.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold mb-3" style={{ color: '#94a3b8' }}>
+                More Crypto Predictions 2026
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {moreCrypto.map(a => (
+                  <Link
+                    key={a.slug}
+                    href={`/crypto/${a.slug}-price-prediction-2026`}
+                    className="card px-3 py-2.5 hover:bg-white/[0.04] transition-all flex items-center gap-2"
+                  >
+                    <span className="text-base">{a.icon}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white truncate">{a.name}</p>
+                      <p className="text-[10px]" style={{ color: '#64748b' }}>{a.symbol}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {moreCommodity.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: '#94a3b8' }}>
+                More Commodity Forecasts 2026
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {moreCommodity.map(a => (
+                  <Link
+                    key={a.slug}
+                    href={`/commodities/${a.slug}-price-prediction-2026`}
+                    className="card px-3 py-2.5 hover:bg-white/[0.04] transition-all flex items-center gap-2"
+                  >
+                    <span className="text-base">{a.icon}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white truncate">{a.name}</p>
+                      <p className="text-[10px]" style={{ color: '#64748b' }}>{a.symbol}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* How it works */}
       <section className="card p-6 mb-10">
         <h2 className="text-lg font-bold text-white mb-6 text-center">How MarketForecast Works</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {[
-            { icon: '📡', title: 'Live Market Data', desc: 'Price, volume, and indicators pulled from market APIs every 5 minutes across 15+ assets.' },
+            { icon: '📡', title: 'Live Market Data', desc: 'Price, volume, and indicators pulled from market APIs every 5 minutes across 40+ assets.' },
             { icon: '🤖', title: 'AI Analysis', desc: 'Claude AI analyzes technical indicators, price action, and news sentiment to generate conditional scenarios — refreshed every 24 hours.' },
             { icon: '📊', title: 'Market Regimes', desc: 'Each asset is classified into uptrend, downtrend, sideways, or chaotic regime based on momentum and volatility metrics.' },
           ].map(item => (

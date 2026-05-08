@@ -1,6 +1,7 @@
 // Free RSS news feeds — no API key required
-// Sources: CoinDesk, CoinTelegraph, Decrypt (crypto) + Reuters commodities RSS
+// Sources: CoinDesk, CoinTelegraph, Decrypt (crypto) + Reuters, OilPrice, Kitco, Mining (commodities)
 import { getCached, setCached } from '@/lib/cache/redis';
+import { getAssetMeta } from '@/data/asset-registry';
 
 export interface NewsItem {
   title: string;
@@ -10,7 +11,8 @@ export interface NewsItem {
   url: string;
 }
 
-const FEEDS: Record<string, { url: string; source: string }[]> = {
+// Per-slug specific feeds (existing + tag-targeted ones we know are good)
+const PER_SLUG_FEEDS: Record<string, { url: string; source: string }[]> = {
   bitcoin: [
     { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?category=markets', source: 'CoinDesk' },
     { url: 'https://cointelegraph.com/rss/tag/bitcoin', source: 'CoinTelegraph' },
@@ -31,14 +33,6 @@ const FEEDS: Record<string, { url: string; source: string }[]> = {
     { url: 'https://cointelegraph.com/rss/tag/cardano', source: 'CoinTelegraph' },
     { url: 'https://decrypt.co/feed', source: 'Decrypt' },
   ],
-  naturalgas: [
-    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
-    { url: 'https://oilprice.com/rss/main', source: 'OilPrice' },
-  ],
-  copper: [
-    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
-    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
-  ],
   solana: [
     { url: 'https://cointelegraph.com/rss/tag/solana', source: 'CoinTelegraph' },
     { url: 'https://decrypt.co/feed', source: 'Decrypt' },
@@ -55,10 +49,59 @@ const FEEDS: Record<string, { url: string; source: string }[]> = {
     { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
     { url: 'https://oilprice.com/rss/main', source: 'OilPrice' },
   ],
+  naturalgas: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+    { url: 'https://oilprice.com/rss/main', source: 'OilPrice' },
+  ],
+  copper: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
+  ],
+  platinum: [
+    { url: 'https://www.kitco.com/rss/kitconews.xml', source: 'Kitco' },
+    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
+  ],
+  palladium: [
+    { url: 'https://www.kitco.com/rss/kitconews.xml', source: 'Kitco' },
+    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
+  ],
 };
 
+// Generic fallback feeds by category — used for any registered slug
+// without an explicit per-slug entry above.
+const GENERIC_CRYPTO_FEEDS: { url: string; source: string }[] = [
+  { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?category=markets', source: 'CoinDesk' },
+  { url: 'https://decrypt.co/feed', source: 'Decrypt' },
+];
+
+const GENERIC_COMMODITY_FEEDS: { url: string; source: string }[] = [
+  { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+  { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
+];
+
+function feedsForSlug(slug: string): { url: string; source: string }[] {
+  const explicit = PER_SLUG_FEEDS[slug];
+  if (explicit) return explicit;
+  const meta = getAssetMeta(slug);
+  if (!meta) return [];
+  return meta.category === 'crypto' ? GENERIC_CRYPTO_FEEDS : GENERIC_COMMODITY_FEEDS;
+}
+
+function keywordsForSlug(slug: string): string[] {
+  const meta = getAssetMeta(slug);
+  if (!meta) return [slug];
+  // Per-slug overrides take priority
+  if (meta.newsKeywords && meta.newsKeywords.length > 0) return meta.newsKeywords;
+  // Otherwise derive from name (lowercase) + symbol
+  const out = new Set<string>();
+  out.add(meta.name.toLowerCase());
+  out.add(meta.symbol.toLowerCase());
+  out.add(slug.toLowerCase());
+  return [...out];
+}
+
 // Simple RSS XML parser (no external deps)
-function parseRSSItems(xml: string, source: string, keyword: string): NewsItem[] {
+function parseRSSItems(xml: string, source: string, keywords: string[]): NewsItem[] {
   const items: NewsItem[] = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
@@ -71,10 +114,9 @@ function parseRSSItems(xml: string, source: string, keyword: string): NewsItem[]
 
     if (!title) continue;
 
-    // Filter by keyword relevance for generic feeds
     const lower = title.toLowerCase();
-    const kw = keyword.toLowerCase();
-    if (!lower.includes(kw) && !isRelated(lower, kw)) continue;
+    const matchesAny = keywords.some(k => lower.includes(k));
+    if (!matchesAny) continue;
 
     items.push({
       title,
@@ -101,23 +143,6 @@ function decodeXML(s: string): string {
   return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
 
-function isRelated(title: string, keyword: string): boolean {
-  const related: Record<string, string[]> = {
-    bitcoin: ['btc', 'crypto', 'cryptocurrency', 'blockchain', 'etf', 'microstrategy'],
-    ethereum: ['eth', 'defi', 'erc-20', 'layer 2', 'l2', 'pectra'],
-    solana: ['sol', 'solana', 'dex', 'firedancer'],
-    xrp: ['xrp', 'ripple', 'odl', 'cross-border', 'sec'],
-    bnb: ['bnb', 'binance', 'bsc', 'bnb chain'],
-    cardano: ['cardano', 'ada', 'iohk', 'midnight', 'chang'],
-    gold: ['gold', 'xau', 'precious metal', 'central bank'],
-    silver: ['silver', 'xag', 'solar', 'precious metal'],
-    oil: ['oil', 'crude', 'opec', 'wti', 'brent', 'energy'],
-    naturalgas: ['natural gas', 'lng', 'natgas', 'gas price', 'energy'],
-    copper: ['copper', 'hg', 'mining', 'electric vehicle', 'ev', 'green energy'],
-  };
-  return (related[keyword] || []).some(kw => title.includes(kw));
-}
-
 function formatRelativeTime(pubDate: string): string {
   if (!pubDate) return 'recently';
   const date = new Date(pubDate);
@@ -141,7 +166,7 @@ function guessSentiment(title: string): 'positive' | 'negative' | 'neutral' {
   return 'neutral';
 }
 
-async function fetchFeed(url: string, source: string, keyword: string): Promise<NewsItem[]> {
+async function fetchFeed(url: string, source: string, keywords: string[]): Promise<NewsItem[]> {
   try {
     const res = await fetch(url, {
       next: { revalidate: 3600 },
@@ -150,7 +175,7 @@ async function fetchFeed(url: string, source: string, keyword: string): Promise<
     });
     if (!res.ok) return [];
     const xml = await res.text();
-    return parseRSSItems(xml, source, keyword);
+    return parseRSSItems(xml, source, keywords);
   } catch {
     return [];
   }
@@ -161,9 +186,11 @@ export async function getNewsForAsset(slug: string): Promise<NewsItem[]> {
   const cached = await getCached<NewsItem[]>(cacheKey);
   if (cached && cached.length > 0) return cached;
 
-  const feeds = FEEDS[slug] || [];
+  const feeds = feedsForSlug(slug);
+  const keywords = keywordsForSlug(slug);
+
   const results = await Promise.allSettled(
-    feeds.map(f => fetchFeed(f.url, f.source, slug))
+    feeds.map(f => fetchFeed(f.url, f.source, keywords))
   );
 
   let items: NewsItem[] = [];

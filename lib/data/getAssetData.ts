@@ -1,37 +1,17 @@
-// Unified data fetcher — used by both crypto and commodity page routes
+// Unified data fetcher — used by both crypto and commodity page routes.
+// All slug → metadata lookups read from data/asset-registry.ts (single source of truth).
 import { getCached, setCached } from '@/lib/cache/redis';
 import { calcRSI, calcMACD, calcBBPosition, calcEMA50Distance, calcATR, classifyRegime } from '@/lib/indicators';
 import { getAIAnalysis } from '@/lib/ai/analysis';
 import { getNewsForAsset, NewsItem } from '@/lib/api/news';
 import { getFearGreed } from '@/lib/api/feargreed';
 import type { Asset } from '@/data/mock-assets';
+import { getAssetMeta, CRYPTO_SLUGS, COMMODITY_SLUGS } from '@/data/asset-registry';
 
 // Crypto-specific imports
 import { getCoinPrice, getCoinHistory, getCoinPriceArray } from '@/lib/api/coingecko';
 // Commodity-specific imports
 import { getCommodityPrice, getCommodityHistory, getCommodityPriceArray } from '@/lib/api/alphavantage';
-
-const CRYPTO_SLUGS = ['bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano'];
-const COMMODITY_SLUGS = ['gold', 'silver', 'oil', 'naturalgas', 'copper'];
-
-const AFFILIATES: Record<string, { name: string; url: string; label: string }[]> = {
-  bitcoin: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/BTC_USDT', label: 'Buy BTC on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/bitcoin', label: 'Buy on Coinbase' }],
-  ethereum: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/ETH_USDT', label: 'Buy ETH on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/ethereum', label: 'Buy on Coinbase' }],
-  solana: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/SOL_USDT', label: 'Buy SOL on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/solana', label: 'Buy on Coinbase' }],
-  xrp: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/XRP_USDT', label: 'Buy XRP on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/xrp', label: 'Buy on Coinbase' }],
-  bnb: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/BNB_USDT', label: 'Buy BNB on Binance' }, { name: 'KuCoin', url: 'https://www.kucoin.com/trade/BNB-USDT', label: 'Buy on KuCoin' }],
-  cardano: [{ name: 'Binance', url: 'https://www.binance.com/en/trade/ADA_USDT', label: 'Buy ADA on Binance' }, { name: 'Coinbase', url: 'https://www.coinbase.com/price/cardano', label: 'Buy on Coinbase' }],
-  gold: [{ name: 'eToro', url: 'https://www.etoro.com/markets/gold', label: 'Trade Gold on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/gold', label: 'Trade on XTB' }],
-  silver: [{ name: 'eToro', url: 'https://www.etoro.com/markets/silver', label: 'Trade Silver on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/silver', label: 'Trade on XTB' }],
-  oil: [{ name: 'eToro', url: 'https://www.etoro.com/markets/oil', label: 'Trade Oil on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/crude-oil', label: 'Trade on XTB' }],
-  naturalgas: [{ name: 'eToro', url: 'https://www.etoro.com/markets/natgas', label: 'Trade Nat Gas on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/natural-gas', label: 'Trade on XTB' }],
-  copper: [{ name: 'eToro', url: 'https://www.etoro.com/markets/copper', label: 'Trade Copper on eToro' }, { name: 'XTB', url: 'https://www.xtb.com/en/financial-data/copper', label: 'Trade on XTB' }],
-};
-
-const ICONS: Record<string, string> = {
-  bitcoin: '₿', ethereum: 'Ξ', solana: '◎', xrp: '✕', bnb: '◈', cardano: '₳',
-  gold: '🥇', silver: '🥈', oil: '🛢️', naturalgas: '🔥', copper: '🔶',
-};
 
 export type AssetWithHistory = Asset & {
   priceHistory30: { date: string; price: number }[];
@@ -40,10 +20,13 @@ export type AssetWithHistory = Asset & {
 };
 
 export async function getAssetData(slug: string): Promise<AssetWithHistory | null> {
+  const meta = getAssetMeta(slug);
+  if (!meta) return null;
+
   const cacheKey = `asset:full:${slug}`;
 
   try {
-    // Check cache first (5 min for prices, AI is separately cached 24h)
+    // Check cache first (5 min for prices, AI is separately cached 7d)
     const cached = await getCached<AssetWithHistory>(cacheKey);
     if (cached) return cached;
   } catch {
@@ -51,10 +34,7 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
   }
 
   try {
-    const isCrypto = CRYPTO_SLUGS.includes(slug);
-    const isCommodity = COMMODITY_SLUGS.includes(slug);
-
-    if (!isCrypto && !isCommodity) return null;
+    const isCrypto = meta.category === 'crypto';
 
     // Fetch price data and history in parallel
     const [prices, history30, history90, news, fearGreedData] = await Promise.all([
@@ -84,10 +64,10 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
       priceArr
     );
 
-    // AI analysis (cached 24h separately)
+    // AI analysis (cached 7d separately)
     const aiAnalysis = await getAIAnalysis(slug, {
-      name: slug.charAt(0).toUpperCase() + slug.slice(1),
-      symbol: formatSymbol(slug),
+      name: meta.name,
+      symbol: meta.symbol,
       price: prices.price,
       change24h: prices.change24h,
       change7d: prices.change7d,
@@ -108,22 +88,23 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
 
     const asset: AssetWithHistory = {
       slug,
-      name: formatName(slug),
-      symbol: formatSymbol(slug),
-      category: isCrypto ? 'crypto' : 'commodity',
-      icon: ICONS[slug] || '•',
+      name: meta.name,
+      symbol: meta.symbol,
+      category: meta.category,
+      icon: meta.icon,
       price: prices.price,
       change24h: prices.change24h,
       change7d: prices.change7d,
       change30d: prices.change30d,
-      marketCap: (prices as any).marketCap,
+      // marketCap is only present on CoinPrice (commodity returns CommodityPrice without it)
+      marketCap: (prices as { marketCap?: string }).marketCap,
       volume24h: prices.volume24h,
       indicators: { rsi, macd, bbPosition, ema50Distance, atr },
       regime,
       fearGreed: fearGreedData?.value,
       aiAnalysis,
       news: news as NewsItem[],
-      affiliates: AFFILIATES[slug] || [],
+      affiliates: meta.affiliates,
       priceHistory30: history30,
       priceHistory90: history90,
       priceHistory365: history365,
@@ -141,22 +122,5 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
   }
 }
 
-function formatName(slug: string): string {
-  const names: Record<string, string> = {
-    bitcoin: 'Bitcoin', ethereum: 'Ethereum', solana: 'Solana',
-    xrp: 'XRP', bnb: 'BNB', cardano: 'Cardano',
-    gold: 'Gold', silver: 'Silver', oil: 'Crude Oil',
-    naturalgas: 'Natural Gas', copper: 'Copper',
-  };
-  return names[slug] || slug;
-}
-
-function formatSymbol(slug: string): string {
-  const symbols: Record<string, string> = {
-    bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL',
-    xrp: 'XRP', bnb: 'BNB', cardano: 'ADA',
-    gold: 'XAU/USD', silver: 'XAG/USD', oil: 'WTI',
-    naturalgas: 'NATGAS', copper: 'HG/USD',
-  };
-  return symbols[slug] || slug.toUpperCase();
-}
+// Backwards-compatibility re-exports — some files still import these constants
+export { CRYPTO_SLUGS, COMMODITY_SLUGS };

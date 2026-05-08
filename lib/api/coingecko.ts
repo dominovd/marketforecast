@@ -1,14 +1,8 @@
 // CoinGecko free API — no key required, 30 req/min limit
-const BASE = 'https://api.coingecko.com/api/v3';
+// Slug → CoinGecko ID lookup is centralized in data/asset-registry.ts
+import { getCoingeckoId } from '@/data/asset-registry';
 
-const COIN_IDS: Record<string, string> = {
-  bitcoin: 'bitcoin',
-  ethereum: 'ethereum',
-  solana: 'solana',
-  xrp: 'ripple',
-  bnb: 'binancecoin',
-  cardano: 'cardano',
-};
+const BASE = 'https://api.coingecko.com/api/v3';
 
 export interface CoinPrice {
   price: number;
@@ -36,18 +30,24 @@ async function fetchCG(path: string) {
   return res.json();
 }
 
-export async function getCoinPrice(slug: string): Promise<CoinPrice> {
-  const id = COIN_IDS[slug];
+function resolveId(slug: string): string {
+  const id = getCoingeckoId(slug);
   if (!id) throw new Error(`Unknown coin slug: ${slug}`);
+  return id;
+}
+
+export async function getCoinPrice(slug: string): Promise<CoinPrice> {
+  const id = resolveId(slug);
 
   const data = await fetchCG(
     `/coins/markets?vs_currency=usd&ids=${id}&price_change_percentage=24h,7d,30d`
   );
   const coin = data[0];
+  if (!coin) throw new Error(`CoinGecko returned no data for ${slug} (id=${id})`);
 
   return {
     price: coin.current_price,
-    change24h: Math.round(coin.price_change_percentage_24h * 100) / 100,
+    change24h: Math.round((coin.price_change_percentage_24h ?? 0) * 100) / 100,
     change7d: Math.round((coin.price_change_percentage_7d_in_currency ?? 0) * 100) / 100,
     change30d: Math.round((coin.price_change_percentage_30d_in_currency ?? 0) * 100) / 100,
     marketCap: formatLarge(coin.market_cap),
@@ -56,8 +56,7 @@ export async function getCoinPrice(slug: string): Promise<CoinPrice> {
 }
 
 export async function getCoinHistory(slug: string, days: number): Promise<OHLCPoint[]> {
-  const id = COIN_IDS[slug];
-  if (!id) throw new Error(`Unknown coin slug: ${slug}`);
+  const id = resolveId(slug);
 
   // Use OHLC endpoint for richer data
   const raw = await fetchCG(`/coins/${id}/ohlc?vs_currency=usd&days=${days}`);
@@ -76,6 +75,7 @@ export async function getCoinPriceArray(slug: string, days: number): Promise<num
 }
 
 function formatLarge(n: number): string {
+  if (!n || isNaN(n)) return '$0';
   if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
