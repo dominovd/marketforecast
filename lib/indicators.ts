@@ -29,7 +29,9 @@ export function calcEMA(prices: number[], period: number): number {
 export function calcMACD(prices: number[]): number {
   const ema12 = calcEMA(prices, 12);
   const ema26 = calcEMA(prices, 26);
-  return Math.round((ema12 - ema26) * 100) / 100;
+  // Don't round here — for low-priced coins (DOGE ~$0.2, SHIB ~$0.00002)
+  // 2-decimal rounding squashes everything to 0.00. Display layer formats.
+  return ema12 - ema26;
 }
 
 export function calcBBPosition(prices: number[], period = 20): number {
@@ -64,7 +66,8 @@ export function calcATR(highs: number[], lows: number[], closes: number[], perio
   }
   const slice = trs.slice(-period);
   const atr = slice.reduce((a, b) => a + b, 0) / slice.length;
-  return Math.round(atr * 100) / 100;
+  // Same reasoning as calcMACD — don't round here, display layer formats.
+  return atr;
 }
 
 export type Regime = 'uptrend' | 'downtrend' | 'sideways' | 'chaotic';

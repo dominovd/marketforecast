@@ -128,18 +128,25 @@ export async function getCoinPricesBulk(slugs: string[]): Promise<Record<string,
 export async function getCoinHistory(slug: string, days: number): Promise<OHLCPoint[]> {
   const id = resolveId(slug);
 
-  // Use OHLC endpoint for richer data
-  const raw = await fetchCG(`/coins/${id}/ohlc?vs_currency=usd&days=${days}`) as number[][];
-  // raw: [[timestamp, open, high, low, close], ...]
-  return raw.map(point => ({
-    date: new Date(point[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    price: point[4], // close
-    high: point[2],
-    low: point[3],
+  // We previously used /coins/{id}/ohlc — but on the free Demo plan that
+  // endpoint returns 4-day candles when days > 30 (so days=90 → only ~22
+  // points, not enough for MACD/EMA50/ATR). /market_chart returns daily
+  // granularity automatically when days > 90 (per CoinGecko docs), giving
+  // ~`days` price points back.
+  const raw = await fetchCG(`/coins/${id}/market_chart?vs_currency=usd&days=${days}`) as {
+    prices: [number, number][];
+  };
+  return raw.prices.map(([ts, price]) => ({
+    date: new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    price,
+    high: price, // market_chart doesn't expose OHLC; synthesize for type compat
+    low: price,
   }));
 }
 
-export async function getCoinPriceArray(slug: string, days: number): Promise<number[]> {
+// Default to 180 days so all indicators (RSI/MACD/EMA50/ATR) get enough
+// daily-granularity data points. Callers can override.
+export async function getCoinPriceArray(slug: string, days: number = 180): Promise<number[]> {
   const history = await getCoinHistory(slug, days);
   return history.map(p => p.price);
 }

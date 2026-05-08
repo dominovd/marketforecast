@@ -5,7 +5,12 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceL
 import { Asset, generatePriceHistory, Regime, Sentiment } from '@/data/mock-assets';
 
 function fmt(n: number, decimals = 2) {
-  if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: decimals });
+  // Auto-scale precision for very small magnitudes (sub-dollar coins, MACD, ATR
+  // on low-priced assets). Avoids "0.00" collapses for SHIB / DOGE-class values.
+  const abs = Math.abs(n);
+  if (abs > 0 && abs < 0.01) decimals = abs < 0.0001 ? 8 : 6;
+  else if (abs > 0 && abs < 1) decimals = Math.max(decimals, 4);
+  if (abs >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
   return n.toFixed(decimals);
 }
 
@@ -48,16 +53,21 @@ function RSIBar({ value }: { value: number }) {
 }
 
 function BBBar({ value }: { value: number }) {
+  // value can legitimately go above 1 (price punching through upper band) or
+  // below 0 (price below lower band) on volatile breakouts. Clamp the bar
+  // width but keep the raw % in the label and call out the breakout state.
   const pct = Math.round(value * 100);
+  const barPct = Math.max(0, Math.min(100, pct));
   const color = value > 0.8 ? '#ef4444' : value < 0.2 ? '#10b981' : '#3b82f6';
+  const breakout = value > 1 ? ' (above upper)' : value < 0 ? ' (below lower)' : '';
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
         <span className="text-xs" style={{ color: '#64748b' }}>BB Position</span>
-        <span className="text-xs font-medium" style={{ color }}>{pct}%</span>
+        <span className="text-xs font-medium" style={{ color }}>{pct}%{breakout}</span>
       </div>
       <div className="h-2 rounded-full relative" style={{ background: '#1e2a3a' }}>
-        <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, #10b981, #3b82f6, #ef4444)` }} />
+        <div className="h-2 rounded-full" style={{ width: `${barPct}%`, background: `linear-gradient(90deg, #10b981, #3b82f6, #ef4444)` }} />
       </div>
       <div className="flex justify-between mt-1">
         <span className="text-xs" style={{ color: '#475569' }}>Lower Band</span>
@@ -197,7 +207,12 @@ export default function AssetPage({ asset }: { asset: Asset }) {
                   interval={Math.floor(chartData.length / 6)} />
                 <YAxis domain={[chartMin, chartMax]} tick={{ fill: '#475569', fontSize: 11 }} tickLine={false}
                   axisLine={false} width={70}
-                  tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v.toFixed(1)}`} />
+                  tickFormatter={v => {
+                    if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`;
+                    if (v >= 1) return `$${v.toFixed(1)}`;
+                    if (v >= 0.01) return `$${v.toFixed(3)}`;
+                    return `$${v.toFixed(6)}`;
+                  }} />
                 <Tooltip content={<CustomTooltip />} />
                 <ReferenceLine y={asset.price} stroke={chartColor} strokeDasharray="3 3" strokeOpacity={0.4} />
                 <Line type="monotone" dataKey="price" stroke={chartColor} strokeWidth={2} dot={false} />

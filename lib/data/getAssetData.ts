@@ -54,7 +54,7 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
   //   - news, fear&greed                    (NICE-TO-HAVE — graceful fallback)
   const [pricesR, priceArrR, newsR, fgR] = await Promise.allSettled([
     isCrypto ? getCoinPrice(slug) : getCommodityPrice(slug),
-    isCrypto ? getCoinPriceArray(slug, 90) : getCommodityPriceArray(slug),
+    isCrypto ? getCoinPriceArray(slug, 180) : getCommodityPriceArray(slug),
     getNewsForAsset(slug),
     isCrypto ? getFearGreed() : Promise.resolve(null),
   ]);

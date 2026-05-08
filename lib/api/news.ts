@@ -57,14 +57,6 @@ const PER_SLUG_FEEDS: Record<string, { url: string; source: string }[]> = {
     { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
     { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
   ],
-  platinum: [
-    { url: 'https://www.kitco.com/rss/kitconews.xml', source: 'Kitco' },
-    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
-  ],
-  palladium: [
-    { url: 'https://www.kitco.com/rss/kitconews.xml', source: 'Kitco' },
-    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
-  ],
 };
 
 // Generic fallback feeds by category — used for any registered slug

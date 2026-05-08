@@ -48,6 +48,15 @@ export interface Asset {
 }
 
 export function generatePriceHistory(basePrice: number, volatility: number, trend: number, days: number) {
+  // Round to a precision proportional to magnitude so low-priced assets
+  // (DOGE ~$0.20, SHIB ~$0.00002) get smooth curves instead of step-functions.
+  const decimals =
+    basePrice >= 100 ? 2 :
+    basePrice >= 1 ? 4 :
+    basePrice >= 0.01 ? 6 :
+    8;
+  const factor = Math.pow(10, decimals);
+
   const data = [];
   let price = basePrice * (1 - trend * 0.6);
   for (let i = days; i >= 0; i--) {
@@ -57,7 +66,7 @@ export function generatePriceHistory(basePrice: number, volatility: number, tren
     price = Math.max(price + change, basePrice * 0.3);
     data.push({
       date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      price: Math.round(price * 100) / 100,
+      price: Math.round(price * factor) / factor,
     });
   }
   data[data.length - 1].price = basePrice;

@@ -162,15 +162,12 @@ export const ASSET_REGISTRY: AssetMeta[] = [
     affiliates: COMMODITY_AFFILIATES('copper'),
     newsKeywords: ['copper', 'hg', 'mining', 'electric vehicle', 'ev', 'green energy'] },
 
-  // ─── COMMODITY (2 new — same FX_DAILY family as gold/silver, low risk) ─
-  { slug: 'platinum', name: 'Platinum', symbol: 'XPT/USD', category: 'commodity', icon: '⬜',
-    avEndpoint: 'fx', avSymbol: 'XPT',
-    affiliates: COMMODITY_AFFILIATES('platinum'),
-    newsKeywords: ['platinum', 'xpt', 'precious metal', 'auto catalyst'] },
-  { slug: 'palladium', name: 'Palladium', symbol: 'XPD/USD', category: 'commodity', icon: '◽',
-    avEndpoint: 'fx', avSymbol: 'XPD',
-    affiliates: COMMODITY_AFFILIATES('palladium'),
-    newsKeywords: ['palladium', 'xpd', 'precious metal', 'auto catalyst'] },
+  // NOTE: platinum (XPT/USD) and palladium (XPD/USD) were attempted on AV's
+  // FX_DAILY endpoint, but Alpha Vantage doesn't actually serve those pairs
+  // reliably (XAU/XAG work because they're heavily quoted in FX; XPT/XPD aren't).
+  // Will re-enable when commodities migrate to Twelve Data ($30/mo, full
+  // precious-metals coverage). Keeping the registry honest in the meantime —
+  // an empty/zero page is worse for SEO than no page at all.
 ];
 
 // ─── DERIVED LOOKUPS ────────────────────────────────────────────────────
