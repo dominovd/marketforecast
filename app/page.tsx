@@ -65,28 +65,30 @@ export default function HomePage() {
       </div>
 
       {/* Market overview bar */}
-      <div className="card p-4 mb-10 flex flex-wrap gap-6 items-center">
-        <div>
-          <p className="text-xs" style={{ color: '#64748b' }}>Total Crypto Market Cap</p>
-          <p className="text-lg font-bold text-white">{totalMarketCap}</p>
-        </div>
-        <div className="w-px h-8" style={{ background: '#1e2a3a' }} />
-        <div>
-          <p className="text-xs" style={{ color: '#64748b' }}>BTC Dominance</p>
-          <p className="text-lg font-bold text-white">{btcDominance}</p>
-        </div>
-        <div className="w-px h-8" style={{ background: '#1e2a3a' }} />
-        <div>
-          <p className="text-xs" style={{ color: '#64748b' }}>Fear & Greed</p>
-          <p className="text-lg font-bold" style={{ color: '#10b981' }}>72 — Greed</p>
-        </div>
-        <div className="w-px h-8" style={{ background: '#1e2a3a' }} />
-        <div>
-          <p className="text-xs" style={{ color: '#64748b' }}>Gold Price</p>
-          <p className="text-lg font-bold text-white">$3,342</p>
-        </div>
-        <div className="ml-auto text-xs" style={{ color: '#475569' }}>
-          ⚠️ Not financial advice. Analysis only.
+      <div className="card p-4 mb-10">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-4 sm:gap-6">
+          <div>
+            <p className="text-xs" style={{ color: '#64748b' }}>Total Crypto Market Cap</p>
+            <p className="text-lg font-bold text-white">{totalMarketCap}</p>
+          </div>
+          <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
+          <div>
+            <p className="text-xs" style={{ color: '#64748b' }}>BTC Dominance</p>
+            <p className="text-lg font-bold text-white">{btcDominance}</p>
+          </div>
+          <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
+          <div>
+            <p className="text-xs" style={{ color: '#64748b' }}>Fear & Greed</p>
+            <p className="text-lg font-bold" style={{ color: '#10b981' }}>72 — Greed</p>
+          </div>
+          <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
+          <div>
+            <p className="text-xs" style={{ color: '#64748b' }}>Gold Price</p>
+            <p className="text-lg font-bold text-white">$3,342</p>
+          </div>
+          <div className="col-span-2 sm:ml-auto text-xs" style={{ color: '#475569' }}>
+            ⚠️ Not financial advice. Analysis only.
+          </div>
         </div>
       </div>
 
