@@ -6,8 +6,8 @@
 //
 // Symbol families used:
 //   - Forex pairs (precious metals):  'XAU/USD', 'XAG/USD', 'XPT/USD', 'XPD/USD'
-//   - Commodity futures (CFDs):       'WTI/USD', 'BRENT/USD', 'NG/USD', 'HG/USD'
-//   - Agri/base-metal ETFs (proxies): 'WEAT', 'CORN', 'CANE', 'JO', 'JJU'
+//   - Commodity futures (CFDs):       'WTI/USD', 'XBR/USD', 'NG/USD', 'HG/USD', 'ALI/USD', 'KC/USD'
+//   - Agri ETFs (NYSE-listed):         'WEAT', 'CORN', 'CANE'  (JJU delisted 2020, JO delisted 2023)
 //
 // ETF proxies trade with a small tracking error vs. the underlying commodity
 // price, but they have reliable Twelve Data coverage. Swap to direct futures

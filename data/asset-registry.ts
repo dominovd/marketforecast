@@ -164,8 +164,8 @@ export const ASSET_REGISTRY: AssetMeta[] = [
     tdSymbol: 'WTI/USD',
     affiliates: COMMODITY_AFFILIATES('oil'),
     newsKeywords: ['oil', 'crude', 'opec', 'wti', 'energy'] },
-  { slug: 'brent', name: 'Brent Crude Oil', symbol: 'BRENT', category: 'commodity', icon: '⛽',
-    tdSymbol: 'BRENT/USD',
+  { slug: 'brent', name: 'Brent Crude Oil', symbol: 'XBR/USD', category: 'commodity', icon: '⛽',
+    tdSymbol: 'XBR/USD', // Twelve Data: Brent Spot / US Dollar (BRENT/USD is not a valid TD symbol)
     affiliates: COMMODITY_AFFILIATES('brent'),
     newsKeywords: ['brent', 'oil', 'crude', 'opec', 'energy'] },
   { slug: 'naturalgas', name: 'Natural Gas', symbol: 'NATGAS', category: 'commodity', icon: '🔥',
@@ -196,8 +196,8 @@ export const ASSET_REGISTRY: AssetMeta[] = [
     tdSymbol: 'CANE',
     affiliates: COMMODITY_AFFILIATES('sugar'),
     newsKeywords: ['sugar', 'cane', 'soft commodity', 'brazil', 'agriculture'] },
-  { slug: 'coffee', name: 'Coffee', symbol: 'JO', category: 'commodity', icon: '☕',
-    tdSymbol: 'JO',
+  { slug: 'coffee', name: 'Coffee', symbol: 'KC/USD', category: 'commodity', icon: '☕',
+    tdSymbol: 'KC/USD', // Coffee C futures CFD (JO ETN delisted NYSE June 2023)
     affiliates: COMMODITY_AFFILIATES('coffee'),
     newsKeywords: ['coffee', 'arabica', 'soft commodity', 'brazil', 'vietnam'] },
 ];
