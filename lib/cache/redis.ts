@@ -27,9 +27,12 @@ export async function getCached<T>(key: string): Promise<T | null> {
 }
 
 export async function setCached<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
+  // ±15 % random jitter prevents thundering herd: when many caches are
+  // populated in the same deployment burst they won't all expire together.
+  const jittered = Math.round(ttlSeconds * (0.85 + 0.30 * Math.random()));
   try {
     const r = getRedis();
-    await r.set(key, value, { ex: ttlSeconds });
+    await r.set(key, value, { ex: jittered });
   } catch (e) {
     console.error('[Redis] setCached error:', e);
   }

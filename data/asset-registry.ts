@@ -178,8 +178,8 @@ export const ASSET_REGISTRY: AssetMeta[] = [
     tdSymbol: 'HG/USD',
     affiliates: COMMODITY_AFFILIATES('copper'),
     newsKeywords: ['copper', 'hg', 'mining', 'electric vehicle', 'ev', 'green energy'] },
-  { slug: 'aluminum', name: 'Aluminum', symbol: 'JJU', category: 'commodity', icon: '⬛',
-    tdSymbol: 'JJU', // ETF proxy — direct ALI/USD CFD coverage on TD is spotty
+  { slug: 'aluminum', name: 'Aluminum', symbol: 'ALI/USD', category: 'commodity', icon: '⬛',
+    tdSymbol: 'ALI/USD', // Aluminum futures CFD on Twelve Data (JJU ETF was delisted NYSE Oct 2020)
     affiliates: COMMODITY_AFFILIATES('aluminum'),
     newsKeywords: ['aluminum', 'aluminium', 'mining', 'lme', 'industrial metal'] },
 

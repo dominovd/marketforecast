@@ -8,6 +8,7 @@
 //
 // Slug → CoinGecko ID lookup is centralized in data/asset-registry.ts.
 import { getCoingeckoId } from '@/data/asset-registry';
+import { getCached, setCached } from '@/lib/cache/redis';
 
 const PUBLIC_BASE = 'https://api.coingecko.com/api/v3';
 const PRO_BASE = 'https://pro-api.coingecko.com/api/v3'; // for paid plans (unused for now)
@@ -128,20 +129,36 @@ export async function getCoinPricesBulk(slugs: string[]): Promise<Record<string,
 export async function getCoinHistory(slug: string, days: number): Promise<OHLCPoint[]> {
   const id = resolveId(slug);
 
+  // Always fetch 180 days and cache in Redis for 24 h (same pattern as TD).
+  // This means 31 crypto slugs make at most 1 history call each per day
+  // instead of 1 per ISR revalidation — prevents thundering-herd 429s.
   // We previously used /coins/{id}/ohlc — but on the free Demo plan that
   // endpoint returns 4-day candles when days > 30 (so days=90 → only ~22
   // points, not enough for MACD/EMA50/ATR). /market_chart returns daily
-  // granularity automatically when days > 90 (per CoinGecko docs), giving
-  // ~`days` price points back.
-  const raw = await fetchCG(`/coins/${id}/market_chart?vs_currency=usd&days=${days}`) as {
+  // granularity automatically when days > 90, giving ~180 daily points.
+  const FETCH_DAYS = 180;
+  const cacheKey = `cg:history:${slug}`;
+
+  const cachedFull = await getCached<OHLCPoint[]>(cacheKey);
+  if (cachedFull && cachedFull.length > 0) {
+    return cachedFull.length <= days ? cachedFull : cachedFull.slice(cachedFull.length - days);
+  }
+
+  const raw = await fetchCG(`/coins/${id}/market_chart?vs_currency=usd&days=${FETCH_DAYS}`) as {
     prices: [number, number][];
   };
-  return raw.prices.map(([ts, price]) => ({
+  const full = raw.prices.map(([ts, price]) => ({
     date: new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     price,
     high: price, // market_chart doesn't expose OHLC; synthesize for type compat
     low: price,
   }));
+
+  if (full.length > 0) {
+    await setCached(cacheKey, full, 24 * 60 * 60); // 24 h (jittered in setCached)
+  }
+
+  return full.length <= days ? full : full.slice(full.length - days);
 }
 
 // Default to 180 days so all indicators (RSI/MACD/EMA50/ATR) get enough

@@ -44,7 +44,7 @@ interface TDError {
   message?: string;
 }
 
-async function fetchTD<T>(path: string, params: Record<string, string>): Promise<T> {
+async function fetchTD<T>(path: string, params: Record<string, string>, attempt = 0): Promise<T> {
   const qs = new URLSearchParams({ ...params, apikey: apiKey() }).toString();
   const res = await fetch(`${BASE}${path}?${qs}`, {
     next: { revalidate: 3600 },
@@ -52,8 +52,19 @@ async function fetchTD<T>(path: string, params: Record<string, string>): Promise
   });
   if (!res.ok) throw new Error(`Twelve Data ${path} → ${res.status}`);
   const data = (await res.json()) as T & TDError;
-  // Twelve Data returns 200 OK with { code: 4xx, status: 'error', message: ... }
-  // when symbol not found / quota hit / key invalid
+
+  // Rate-limited: TD returns 200 OK with { code: 429, status: 'error' } when
+  // the per-minute quota is exceeded. Back off and retry up to 3 times.
+  if (data.code === 429) {
+    if (attempt < 3) {
+      const wait = 1500 * (attempt + 1); // 1.5 s, 3 s, 4.5 s
+      await new Promise(r => setTimeout(r, wait));
+      return fetchTD(path, params, attempt + 1);
+    }
+    throw new Error(`Twelve Data rate limit (429) after ${attempt + 1} attempts`);
+  }
+
+  // Other API-level errors (symbol not found, invalid key, etc.)
   if (data.status === 'error' || (typeof data.code === 'number' && data.code >= 400)) {
     throw new Error(`Twelve Data error (${data.code}): ${data.message ?? 'unknown'}`);
   }
