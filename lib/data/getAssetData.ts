@@ -10,8 +10,10 @@ import { getAssetMeta, CRYPTO_SLUGS, COMMODITY_SLUGS, type AssetMeta } from '@/d
 
 // Crypto-specific imports
 import { getCoinPrice, getCoinPriceArray } from '@/lib/api/coingecko';
-// Commodity-specific imports
-import { getCommodityPrice, getCommodityPriceArray } from '@/lib/api/alphavantage';
+// Commodity-specific imports — switched from Alpha Vantage to Twelve Data
+// (free 800 req/day, supports XPT/XPD precious metals + futures + agri ETFs).
+// alphavantage.ts is left in lib/api/ as historical reference; not imported.
+import { getCommodityPrice, getCommodityPriceArray } from '@/lib/api/twelvedata';
 
 // Note: priceHistory* fields are kept on the type for backwards compatibility
 // (consumers may import the type), but we no longer fetch them — the AssetPage

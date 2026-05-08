@@ -6,17 +6,19 @@
 // avoid recently rebranded coins (e.g. matic-network → polygon-ecosystem-token)
 // because the ID can change again.
 //
-// Commodity routing tracks Alpha Vantage's three endpoint families:
-//   - 'fx'        → FX_DAILY (XAU, XAG, XPT, XPD vs USD)
-//   - 'energy'    → WTI / NATURAL_GAS / BRENT
-//   - 'commodity' → COPPER / ALUMINUM / WHEAT / CORN / SUGAR / COFFEE / COTTON
+// Commodities now route through Twelve Data (lib/api/twelvedata.ts).
+// `tdSymbol` is the symbol Twelve Data expects on /time_series:
+//   - Forex pairs (precious metals):  'XAU/USD', 'XAG/USD', 'XPT/USD', 'XPD/USD'
+//   - Commodity futures (CFD):        'WTI/USD', 'BRENT/USD', 'NG/USD', 'HG/USD'
+//   - ETF proxies (NYSE-listed):      'WEAT', 'CORN', 'CANE', 'JO', 'JJU'
 //
-// Adding a new commodity is safe ONLY if `getCommodityHistory` has the Redis
-// 24h cache wrapper (lib/api/alphavantage.ts) — without it, the AV free tier
-// (25 req/day) blows up at >5 commodity slugs.
+// ETF proxies have a small tracking error vs. their underlying commodity, but
+// they have reliable Twelve Data coverage. Direct futures symbols are tried
+// first for energy/base metals; agri commodities use ETFs. Each entry in
+// scope is verified at smoke-test — if Twelve Data returns no data for a
+// symbol, we swap it.
 
 export type AssetCategory = 'crypto' | 'commodity';
-export type AVEndpoint = 'fx' | 'energy' | 'commodity';
 
 export interface AssetMeta {
   slug: string;
@@ -26,9 +28,8 @@ export interface AssetMeta {
   icon: string;
   // Crypto-only
   coingeckoId?: string;
-  // Commodity-only
-  avEndpoint?: AVEndpoint;
-  avSymbol?: string; // e.g. 'XAU', 'WTI', 'COPPER', 'BRENT'
+  // Commodity-only — Twelve Data symbol
+  tdSymbol?: string;
   // Affiliate links (footer of asset card)
   affiliates: { name: string; url: string; label: string }[];
   // Optional newsfeed keyword overrides (else derived from name+symbol)
@@ -140,34 +141,65 @@ export const ASSET_REGISTRY: AssetMeta[] = [
     coingeckoId: 'tezos',
     affiliates: CRYPTO_AFFILIATES('XTZ', 'tezos') },
 
-  // ─── COMMODITY (existing 5) ──────────────────────────────────────────
+  // ─── COMMODITY — precious metals (forex pairs) ──────────────────────
   { slug: 'gold', name: 'Gold', symbol: 'XAU/USD', category: 'commodity', icon: '🥇',
-    avEndpoint: 'fx', avSymbol: 'XAU',
+    tdSymbol: 'XAU/USD',
     affiliates: COMMODITY_AFFILIATES('gold'),
     newsKeywords: ['gold', 'xau', 'precious metal', 'central bank'] },
   { slug: 'silver', name: 'Silver', symbol: 'XAG/USD', category: 'commodity', icon: '🥈',
-    avEndpoint: 'fx', avSymbol: 'XAG',
+    tdSymbol: 'XAG/USD',
     affiliates: COMMODITY_AFFILIATES('silver'),
     newsKeywords: ['silver', 'xag', 'solar', 'precious metal'] },
+  { slug: 'platinum', name: 'Platinum', symbol: 'XPT/USD', category: 'commodity', icon: '⬜',
+    tdSymbol: 'XPT/USD',
+    affiliates: COMMODITY_AFFILIATES('platinum'),
+    newsKeywords: ['platinum', 'xpt', 'precious metal', 'auto catalyst'] },
+  { slug: 'palladium', name: 'Palladium', symbol: 'XPD/USD', category: 'commodity', icon: '◽',
+    tdSymbol: 'XPD/USD',
+    affiliates: COMMODITY_AFFILIATES('palladium'),
+    newsKeywords: ['palladium', 'xpd', 'precious metal', 'auto catalyst'] },
+
+  // ─── COMMODITY — energy (Twelve Data CFD symbols) ───────────────────
   { slug: 'oil', name: 'Crude Oil', symbol: 'WTI', category: 'commodity', icon: '🛢️',
-    avEndpoint: 'energy', avSymbol: 'WTI',
+    tdSymbol: 'WTI/USD',
     affiliates: COMMODITY_AFFILIATES('oil'),
-    newsKeywords: ['oil', 'crude', 'opec', 'wti', 'brent', 'energy'] },
+    newsKeywords: ['oil', 'crude', 'opec', 'wti', 'energy'] },
+  { slug: 'brent', name: 'Brent Crude Oil', symbol: 'BRENT', category: 'commodity', icon: '⛽',
+    tdSymbol: 'BRENT/USD',
+    affiliates: COMMODITY_AFFILIATES('brent'),
+    newsKeywords: ['brent', 'oil', 'crude', 'opec', 'energy'] },
   { slug: 'naturalgas', name: 'Natural Gas', symbol: 'NATGAS', category: 'commodity', icon: '🔥',
-    avEndpoint: 'energy', avSymbol: 'NATURAL_GAS',
+    tdSymbol: 'NG/USD',
     affiliates: COMMODITY_AFFILIATES('natural-gas'),
     newsKeywords: ['natural gas', 'lng', 'natgas', 'gas price', 'energy'] },
+
+  // ─── COMMODITY — base metals (Twelve Data CFD symbols) ──────────────
   { slug: 'copper', name: 'Copper', symbol: 'HG/USD', category: 'commodity', icon: '🔶',
-    avEndpoint: 'commodity', avSymbol: 'COPPER',
+    tdSymbol: 'HG/USD',
     affiliates: COMMODITY_AFFILIATES('copper'),
     newsKeywords: ['copper', 'hg', 'mining', 'electric vehicle', 'ev', 'green energy'] },
+  { slug: 'aluminum', name: 'Aluminum', symbol: 'JJU', category: 'commodity', icon: '⬛',
+    tdSymbol: 'JJU', // ETF proxy — direct ALI/USD CFD coverage on TD is spotty
+    affiliates: COMMODITY_AFFILIATES('aluminum'),
+    newsKeywords: ['aluminum', 'aluminium', 'mining', 'lme', 'industrial metal'] },
 
-  // NOTE: platinum (XPT/USD) and palladium (XPD/USD) were attempted on AV's
-  // FX_DAILY endpoint, but Alpha Vantage doesn't actually serve those pairs
-  // reliably (XAU/XAG work because they're heavily quoted in FX; XPT/XPD aren't).
-  // Will re-enable when commodities migrate to Twelve Data ($30/mo, full
-  // precious-metals coverage). Keeping the registry honest in the meantime —
-  // an empty/zero page is worse for SEO than no page at all.
+  // ─── COMMODITY — agriculture (NYSE-listed ETF proxies) ──────────────
+  { slug: 'wheat', name: 'Wheat', symbol: 'WEAT', category: 'commodity', icon: '🌾',
+    tdSymbol: 'WEAT',
+    affiliates: COMMODITY_AFFILIATES('wheat'),
+    newsKeywords: ['wheat', 'grain', 'cbot', 'agriculture', 'usda'] },
+  { slug: 'corn', name: 'Corn', symbol: 'CORN', category: 'commodity', icon: '🌽',
+    tdSymbol: 'CORN',
+    affiliates: COMMODITY_AFFILIATES('corn'),
+    newsKeywords: ['corn', 'maize', 'grain', 'cbot', 'agriculture', 'ethanol'] },
+  { slug: 'sugar', name: 'Sugar', symbol: 'CANE', category: 'commodity', icon: '🍬',
+    tdSymbol: 'CANE',
+    affiliates: COMMODITY_AFFILIATES('sugar'),
+    newsKeywords: ['sugar', 'cane', 'soft commodity', 'brazil', 'agriculture'] },
+  { slug: 'coffee', name: 'Coffee', symbol: 'JO', category: 'commodity', icon: '☕',
+    tdSymbol: 'JO',
+    affiliates: COMMODITY_AFFILIATES('coffee'),
+    newsKeywords: ['coffee', 'arabica', 'soft commodity', 'brazil', 'vietnam'] },
 ];
 
 // ─── DERIVED LOOKUPS ────────────────────────────────────────────────────
@@ -188,10 +220,10 @@ export function getCoingeckoId(slug: string): string | undefined {
   return REGISTRY_BY_SLUG[slug]?.coingeckoId;
 }
 
-export function getCommodityRouting(slug: string): { endpoint: AVEndpoint; symbol: string } | undefined {
+export function getCommodityRouting(slug: string): { symbol: string } | undefined {
   const a = REGISTRY_BY_SLUG[slug];
-  if (!a || a.category !== 'commodity' || !a.avEndpoint || !a.avSymbol) return undefined;
-  return { endpoint: a.avEndpoint, symbol: a.avSymbol };
+  if (!a || a.category !== 'commodity' || !a.tdSymbol) return undefined;
+  return { symbol: a.tdSymbol };
 }
 
 export function getAssetMeta(slug: string): AssetMeta | undefined {

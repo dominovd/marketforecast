@@ -57,6 +57,34 @@ const PER_SLUG_FEEDS: Record<string, { url: string; source: string }[]> = {
     { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
     { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
   ],
+  platinum: [
+    { url: 'https://www.kitco.com/rss/kitconews.xml', source: 'Kitco' },
+    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
+  ],
+  palladium: [
+    { url: 'https://www.kitco.com/rss/kitconews.xml', source: 'Kitco' },
+    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
+  ],
+  brent: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+    { url: 'https://oilprice.com/rss/main', source: 'OilPrice' },
+  ],
+  aluminum: [
+    { url: 'https://www.mining.com/feed/', source: 'Mining.com' },
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+  ],
+  wheat: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+  ],
+  corn: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+  ],
+  sugar: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+  ],
+  coffee: [
+    { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters' },
+  ],
 };
 
 // Generic fallback feeds by category — used for any registered slug
