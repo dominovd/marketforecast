@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ASSETS, ALL_ASSETS_LIST } from '@/data/mock-assets';
+import { ALL_ASSETS_LIST } from '@/data/mock-assets';
 import { CRYPTO_REGISTRY, COMMODITY_REGISTRY } from '@/data/asset-registry';
+import { getHomepageData } from '@/lib/data/getHomepageData';
+
+// ISR: revalidate the homepage every 5 min so prices stay reasonably fresh
+// without hammering CoinGecko / Twelve Data on every visit.
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: 'MarketForecast — AI-Powered Price Predictions for Crypto & Commodities 2026',
@@ -33,18 +38,29 @@ function RegimeLabel({ regime }: { regime: string }) {
   return <span className={`${cls} text-xs px-2 py-0.5 rounded-full`}>{labels[regime] || regime}</span>;
 }
 
-export default function HomePage() {
-  const cryptoAssets = ALL_ASSETS_LIST.filter(a => a.category === 'crypto').map(a => ASSETS[a.slug]);
-  const commodityAssets = ALL_ASSETS_LIST.filter(a => a.category === 'commodity').map(a => ASSETS[a.slug]);
+function formatPrice(p: number): string {
+  if (p >= 1000) return p.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (p >= 1) return p.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (p >= 0.01) return p.toFixed(4);
+  return p.toFixed(6);
+}
+
+function fearGreedColor(value: number): string {
+  if (value >= 75) return '#10b981'; // extreme greed — green
+  if (value >= 55) return '#10b981'; // greed — green
+  if (value >= 45) return '#f59e0b'; // neutral — amber
+  if (value >= 25) return '#f97316'; // fear — orange
+  return '#ef4444';                  // extreme fear — red
+}
+
+export default async function HomePage() {
+  const { crypto: cryptoAssets, commodity: commodityAssets, topbar } = await getHomepageData();
 
   // Slugs registered but not yet hand-curated — surface as a directory
   // so Google can crawl and index them.
   const featuredSlugs = new Set(ALL_ASSETS_LIST.map(a => a.slug));
   const moreCrypto = CRYPTO_REGISTRY.filter(a => !featuredSlugs.has(a.slug));
   const moreCommodity = COMMODITY_REGISTRY.filter(a => !featuredSlugs.has(a.slug));
-
-  const totalMarketCap = '$2.8T';
-  const btcDominance = '58.4%';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
@@ -69,22 +85,24 @@ export default function HomePage() {
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-4 sm:gap-6">
           <div>
             <p className="text-xs" style={{ color: '#64748b' }}>Total Crypto Market Cap</p>
-            <p className="text-lg font-bold text-white">{totalMarketCap}</p>
+            <p className="text-lg font-bold text-white">{topbar.totalMarketCap}</p>
           </div>
           <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
           <div>
             <p className="text-xs" style={{ color: '#64748b' }}>BTC Dominance</p>
-            <p className="text-lg font-bold text-white">{btcDominance}</p>
+            <p className="text-lg font-bold text-white">{topbar.btcDominance}</p>
           </div>
           <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
           <div>
             <p className="text-xs" style={{ color: '#64748b' }}>Fear & Greed</p>
-            <p className="text-lg font-bold" style={{ color: '#10b981' }}>72 — Greed</p>
+            <p className="text-lg font-bold" style={{ color: fearGreedColor(topbar.fearGreed.value) }}>
+              {topbar.fearGreed.value} — {topbar.fearGreed.label}
+            </p>
           </div>
           <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
           <div>
             <p className="text-xs" style={{ color: '#64748b' }}>Gold Price</p>
-            <p className="text-lg font-bold text-white">$3,342</p>
+            <p className="text-lg font-bold text-white">${formatPrice(topbar.goldPrice)}</p>
           </div>
           <div className="col-span-2 sm:ml-auto text-xs" style={{ color: '#475569' }}>
             ⚠️ Not financial advice. Analysis only.
@@ -123,9 +141,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="col-span-2 text-right">
-                  <p className="text-sm font-semibold text-white">
-                    ${asset.price >= 1000 ? asset.price.toLocaleString() : asset.price}
-                  </p>
+                  <p className="text-sm font-semibold text-white">${formatPrice(asset.price)}</p>
                 </div>
                 <div className="col-span-2 text-right">
                   <ChangeChip value={asset.change24h} />
@@ -173,7 +189,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="col-span-2 text-right">
-                  <p className="text-sm font-semibold text-white">${asset.price}</p>
+                  <p className="text-sm font-semibold text-white">${formatPrice(asset.price)}</p>
                 </div>
                 <div className="col-span-2 text-right">
                   <ChangeChip value={asset.change24h} />
