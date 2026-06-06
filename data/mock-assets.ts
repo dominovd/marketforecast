@@ -45,6 +45,11 @@ export interface Asset {
   };
   news: NewsItem[];
   affiliates: { name: string; url: string; label: string }[];
+  // Real daily-close history, oldest→newest. Populated by getAssetData() from
+  // CoinGecko /market_chart or Twelve Data /time_series. Optional so existing
+  // hardcoded mock objects below remain valid; consumers should fall back to
+  // generatePriceHistory() when this is absent.
+  priceHistory?: { date: string; price: number }[];
 }
 
 export function generatePriceHistory(basePrice: number, volatility: number, trend: number, days: number) {

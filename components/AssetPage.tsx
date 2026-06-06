@@ -109,12 +109,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function AssetPage({ asset }: { asset: Asset }) {
-  const [period, setPeriod] = useState<30 | 90 | 365>(90);
+  const [period, setPeriod] = useState<30 | 90 | 180>(90);
 
-  const priceHistory = useMemo(() =>
-    generatePriceHistory(asset.price, asset.price * 0.028, asset.change30d / 100, 365),
-    [asset.slug]
-  );
+  // Prefer the real 180-day daily-close history attached by getAssetData().
+  // Fall back to the procedural random walk only if the upstream API failed
+  // and getAssetData returned a placeholder asset with no history.
+  const priceHistory = useMemo(() => {
+    if (asset.priceHistory && asset.priceHistory.length > 0) return asset.priceHistory;
+    return generatePriceHistory(asset.price, asset.price * 0.028, asset.change30d / 100, 180);
+  }, [asset.slug, asset.priceHistory, asset.price, asset.change30d]);
 
   const chartData = priceHistory.slice(-period);
   const chartMin = Math.min(...chartData.map(d => d.price)) * 0.985;
@@ -186,11 +189,11 @@ export default function AssetPage({ asset }: { asset: Asset }) {
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-white">Price Chart</h2>
               <div className="flex gap-1">
-                {([30, 90, 365] as const).map(p => (
+                {([30, 90, 180] as const).map(p => (
                   <button key={p} onClick={() => setPeriod(p)}
                     className="text-xs px-3 py-1.5 rounded-lg transition-all"
                     style={{ background: period === p ? '#3b82f6' : '#1e2a3a', color: period === p ? 'white' : '#64748b' }}>
-                    {p === 30 ? '1M' : p === 90 ? '3M' : '1Y'}
+                    {p === 30 ? '1M' : p === 90 ? '3M' : '6M'}
                   </button>
                 ))}
               </div>

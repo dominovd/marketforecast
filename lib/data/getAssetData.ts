@@ -9,23 +9,20 @@ import { ASSETS, type Asset } from '@/data/mock-assets';
 import { getAssetMeta, CRYPTO_SLUGS, COMMODITY_SLUGS, type AssetMeta } from '@/data/asset-registry';
 
 // Crypto-specific imports
-import { getCoinPrice, getCoinPriceArray } from '@/lib/api/coingecko';
+import { getCoinPrice, getCoinHistory } from '@/lib/api/coingecko';
 // Commodity-specific imports — switched from Alpha Vantage to Twelve Data
 // (free 800 req/day, supports XPT/XPD precious metals + futures + agri ETFs).
 // alphavantage.ts is left in lib/api/ as historical reference; not imported.
-import { getCommodityPrice, getCommodityPriceArray } from '@/lib/api/twelvedata';
+import { getCommodityPrice, getCommodityHistory } from '@/lib/api/twelvedata';
 
-// Note: priceHistory* fields are kept on the type for backwards compatibility
-// (consumers may import the type), but we no longer fetch them — the AssetPage
-// component generates its own client-side history via generatePriceHistory().
-// Fetching unused 30/90/365-day history from CoinGecko/AV was the source of the
-// 404s on new slugs: CoinGecko free API restricts /coins/{id}/ohlc?days=365 and
-// any thrown error in Promise.all killed the whole render path.
-export type AssetWithHistory = Asset & {
-  priceHistory30?: { date: string; price: number }[];
-  priceHistory90?: { date: string; price: number }[];
-  priceHistory365?: { date: string; price: number }[];
-};
+// We now attach the same 180-day daily-close history that feeds the indicators
+// directly onto the returned asset (as `priceHistory` on the Asset interface),
+// so the chart on the asset page can render REAL price action instead of the
+// procedural random walk that generatePriceHistory() used to produce.
+// AssetWithHistory is kept as an alias for callers that imported the old name;
+// the deprecated 30/90/365 variants are gone — the chart now slices a single
+// 180-pt array client-side.
+export type AssetWithHistory = Asset;
 
 // Helper: unwrap allSettled result with fallback
 function settled<T>(r: PromiseSettledResult<T>, fallback: T, label: string): T {
@@ -52,11 +49,11 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
 
   // Fetch only what we actually use:
   //   - current price + 24h/7d/30d changes  (REQUIRED — drives the hero block)
-  //   - 90-day price array                  (REQUIRED — feeds indicators)
+  //   - 180-day price history with dates    (REQUIRED — feeds indicators AND chart)
   //   - news, fear&greed                    (NICE-TO-HAVE — graceful fallback)
-  const [pricesR, priceArrR, newsR, fgR] = await Promise.allSettled([
+  const [pricesR, historyR, newsR, fgR] = await Promise.allSettled([
     isCrypto ? getCoinPrice(slug) : getCommodityPrice(slug),
-    isCrypto ? getCoinPriceArray(slug, 180) : getCommodityPriceArray(slug),
+    isCrypto ? getCoinHistory(slug, 180) : getCommodityHistory(slug, 180),
     getNewsForAsset(slug),
     isCrypto ? getFearGreed() : Promise.resolve(null),
   ]);
@@ -74,7 +71,10 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
   }
   const prices = pricesR.value;
 
-  const priceArr = settled(priceArrR, [], `priceArr ${slug}`);
+  // History is `{date, price, ...}[]` from either CG or TD. Derive the bare
+  // price array for indicators; pass the full series through to the chart.
+  const history = settled(historyR, [] as { date: string; price: number }[], `history ${slug}`);
+  const priceArr = history.map(p => p.price);
   const news = settled(newsR, [] as NewsItem[], `news ${slug}`);
   const fearGreedData = settled(fgR, null, `f&g ${slug}`);
 
@@ -127,6 +127,9 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
     aiAnalysis,
     news,
     affiliates: meta.affiliates,
+    // Pass the real 180-day history to the client — chart renders directly
+    // from this instead of generating a random walk anchored to current price.
+    priceHistory: history.map(p => ({ date: p.date, price: p.price })),
   };
 
   // Cache full asset for 5 minutes
