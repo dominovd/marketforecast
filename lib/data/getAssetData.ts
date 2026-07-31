@@ -10,7 +10,7 @@ import { ASSETS, type Asset } from '@/data/mock-assets';
 import { getAssetMeta, CRYPTO_SLUGS, COMMODITY_SLUGS, type AssetMeta } from '@/data/asset-registry';
 
 // Crypto-specific imports
-import { getCoinPrice, getCoinHistory } from '@/lib/api/coingecko';
+import { getCoinPriceCached, getCoinHistory } from '@/lib/api/coingecko';
 // Commodity-specific imports — switched from Alpha Vantage to Twelve Data
 // (free 800 req/day, supports XPT/XPD precious metals + futures + agri ETFs).
 // alphavantage.ts is left in lib/api/ as historical reference; not imported.
@@ -53,7 +53,7 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
   //   - 180-day price history with dates    (REQUIRED — feeds indicators AND chart)
   //   - news, fear&greed                    (NICE-TO-HAVE — graceful fallback)
   const [pricesR, historyR, newsR, fgR] = await Promise.allSettled([
-    isCrypto ? getCoinPrice(slug) : getCommodityPrice(slug),
+    isCrypto ? getCoinPriceCached(slug) : getCommodityPrice(slug),
     isCrypto ? getCoinHistory(slug, 180) : getCommodityHistory(slug, 180),
     getNewsForAsset(slug),
     isCrypto ? getFearGreed() : Promise.resolve(null),

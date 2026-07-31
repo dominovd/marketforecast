@@ -8,8 +8,8 @@
 // Cached in Redis for 5 min; the homepage itself also runs under ISR
 // (revalidate = 300) so even without Redis we get static caching.
 import { getCached, setCached } from '@/lib/cache/redis';
-import { getCoinPricesBulk } from '@/lib/api/coingecko';
-import { getCommodityPrice } from '@/lib/api/twelvedata';
+import { getAllCryptoPrices } from '@/lib/api/coingecko';
+import { getCommodityPriceResilient } from '@/lib/api/twelvedata';
 import { getFearGreed } from '@/lib/api/feargreed';
 import { ASSETS, ALL_ASSETS_LIST, type Regime } from '@/data/mock-assets';
 
@@ -23,13 +23,15 @@ export interface HomepageRow {
   change24h: number;
   change30d: number;
   regime: Regime;
+  /** True when the reading is a cached last-good value rather than live. */
+  stale?: boolean;
 }
 
 export interface HomepageTopbar {
-  totalMarketCap: string;
-  btcDominance: string;
-  fearGreed: { value: number; label: string };
-  goldPrice: number;
+  totalMarketCap: string | null;
+  btcDominance: string | null;
+  fearGreed: { value: number; label: string } | null;
+  goldPrice: number | null;
 }
 
 export interface HomepageData {
@@ -93,65 +95,80 @@ export async function getHomepageData(): Promise<HomepageData> {
   const cryptoSlugs = ALL_ASSETS_LIST.filter(a => a.category === 'crypto').map(a => a.slug);
   const commoditySlugs = ALL_ASSETS_LIST.filter(a => a.category === 'commodity').map(a => a.slug);
 
-  // 2. Parallel fetch — everything is allSettled so a single API hiccup
-  //    can't kill the whole page.
-  const [cryptoBulkR, commoditiesR, fgR, globalsR] = await Promise.allSettled([
-    getCoinPricesBulk(cryptoSlugs),
-    Promise.allSettled(commoditySlugs.map(s => getCommodityPrice(s))),
+  // 2. Fetch. Crypto comes from the shared bulk snapshot (one CoinGecko call
+  //    for every coin on the site). Commodities are fetched SEQUENTIALLY with a
+  //    short gap: Twelve Data's free tier allows 8 requests/minute, and firing
+  //    five at once was reliably tripping a 429 on four of them.
+  const [cryptoBulkR, fgR, globalsR] = await Promise.allSettled([
+    getAllCryptoPrices(),
     getFearGreed(),
     getCryptoGlobals(),
   ]);
 
   const cryptoBulk = cryptoBulkR.status === 'fulfilled' ? cryptoBulkR.value : {};
-  const commoditiesSettled = commoditiesR.status === 'fulfilled' ? commoditiesR.value : [];
+
+  const commodityResults: (Awaited<ReturnType<typeof getCommodityPriceResilient>>)[] = [];
+  for (let i = 0; i < commoditySlugs.length; i++) {
+    if (i > 0) await new Promise(r => setTimeout(r, 400));
+    try {
+      commodityResults.push(await getCommodityPriceResilient(commoditySlugs[i]));
+    } catch {
+      commodityResults.push(null);
+    }
+  }
 
   // 3. Build rows — live data when available, mock fallback per asset.
-  const crypto: HomepageRow[] = cryptoSlugs.map(slug => {
-    const mock = ASSETS[slug];
+  // Same rule as commodities: no live reading means no row. ASSETS is used only
+  // for display metadata (name, symbol, icon) — never for prices.
+  const crypto: HomepageRow[] = cryptoSlugs.flatMap(slug => {
+    const meta = ASSETS[slug];
     const live = cryptoBulk[slug];
-    const price = live?.price ?? mock?.price ?? 0;
-    const change24h = live?.change24h ?? mock?.change24h ?? 0;
-    const change30d = live?.change30d ?? mock?.change30d ?? 0;
-    return {
+    if (!live) return [];
+    return [{
       slug,
-      name: mock?.name ?? slug,
-      symbol: mock?.symbol ?? slug.toUpperCase(),
-      category: 'crypto',
-      icon: mock?.icon ?? '💱',
-      price,
-      change24h,
-      change30d,
-      regime: live ? regimeFromChange(change30d) : (mock?.regime ?? 'sideways'),
-    };
+      name: meta?.name ?? slug,
+      symbol: meta?.symbol ?? slug.toUpperCase(),
+      category: 'crypto' as const,
+      icon: meta?.icon ?? '💱',
+      price: live.price,
+      change24h: live.change24h,
+      change30d: live.change30d,
+      regime: regimeFromChange(live.change30d),
+      stale: false,
+    }];
   });
 
-  const commodity: HomepageRow[] = commoditySlugs.map((slug, i) => {
-    const mock = ASSETS[slug];
-    const r = commoditiesSettled[i];
-    const live = r && r.status === 'fulfilled' ? r.value : null;
-    const price = live?.price ?? mock?.price ?? 0;
-    const change24h = live?.change24h ?? mock?.change24h ?? 0;
-    const change30d = live?.change30d ?? mock?.change30d ?? 0;
-    return {
+  // Rows with no real reading at all are DROPPED, not filled with mock data.
+  // Publishing an invented price that is visually identical to a live one is
+  // worse than showing one fewer row.
+  const commodity: HomepageRow[] = commoditySlugs.flatMap((slug, i) => {
+    const meta = ASSETS[slug];
+    const live = commodityResults[i];
+    if (!live) return [];
+    return [{
       slug,
-      name: mock?.name ?? slug,
-      symbol: mock?.symbol ?? slug.toUpperCase(),
-      category: 'commodity',
-      icon: mock?.icon ?? '🛢️',
-      price,
-      change24h,
-      change30d,
-      regime: live ? regimeFromChange(change30d) : (mock?.regime ?? 'sideways'),
-    };
+      name: meta?.name ?? slug,
+      symbol: meta?.symbol ?? slug.toUpperCase(),
+      category: 'commodity' as const,
+      icon: meta?.icon ?? '🛢️',
+      price: live.price,
+      change24h: live.change24h,
+      change30d: live.change30d,
+      regime: regimeFromChange(live.change30d),
+      stale: live.stale,
+    }];
   });
 
   // 4. Topbar — each field has its own fallback.
+  // Topbar fields are nulled rather than defaulted when unavailable — the UI
+  // renders a dash. The old hardcoded '$2.8T' / '58.4%' / 3342 fallbacks were
+  // indistinguishable from real figures once on screen.
   const goldRow = commodity.find(c => c.slug === 'gold');
   const topbar: HomepageTopbar = {
-    totalMarketCap: globalsR.status === 'fulfilled' ? globalsR.value.totalMarketCap : '$2.8T',
-    btcDominance: globalsR.status === 'fulfilled' ? globalsR.value.btcDominance : '58.4%',
-    fearGreed: fgR.status === 'fulfilled' ? fgR.value : { value: 50, label: 'Neutral' },
-    goldPrice: goldRow?.price ?? 3342,
+    totalMarketCap: globalsR.status === 'fulfilled' ? globalsR.value.totalMarketCap : null,
+    btcDominance: globalsR.status === 'fulfilled' ? globalsR.value.btcDominance : null,
+    fearGreed: fgR.status === 'fulfilled' ? fgR.value : null,
+    goldPrice: goldRow?.price ?? null,
   };
 
   const data: HomepageData = { crypto, commodity, topbar };

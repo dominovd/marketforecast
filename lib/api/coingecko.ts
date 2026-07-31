@@ -126,6 +126,46 @@ export async function getCoinPricesBulk(slugs: string[]): Promise<Record<string,
   return out;
 }
 
+// One CoinGecko call covers every crypto slug we track, cached in Redis and
+// shared by the homepage AND all 30 asset pages.
+//
+// Why this exists: /coins/markets accepts up to 250 ids per request at a flat
+// 1-credit cost, but we were calling it once PER ASSET. On the Demo plan's
+// 10,000 calls/month that arithmetic fails badly — 30 assets refreshing on a
+// 15-minute ISR is ~50k calls/month, five times the cap. Fetching all of them
+// together turns that into one call per refresh window.
+const ALL_PRICES_KEY = 'cg:allprices';
+const ALL_PRICES_TTL = 600; // matches the homepage ISR
+
+export async function getAllCryptoPrices(): Promise<Record<string, CoinPrice>> {
+  const cached = await getCached<Record<string, CoinPrice>>(ALL_PRICES_KEY);
+  if (cached && Object.keys(cached).length > 0) return cached;
+
+  const { CRYPTO_SLUGS } = await import('@/data/asset-registry');
+  const prices = await getCoinPricesBulk(CRYPTO_SLUGS);
+
+  if (Object.keys(prices).length > 0) {
+    await setCached(ALL_PRICES_KEY, prices, ALL_PRICES_TTL);
+  }
+  return prices;
+}
+
+/**
+ * Price for a single slug, served from the shared bulk snapshot. Falls back to
+ * a direct single-asset call only if the bulk fetch failed or somehow omitted
+ * this coin, so a cold cache still renders rather than 500ing.
+ */
+export async function getCoinPriceCached(slug: string): Promise<CoinPrice> {
+  try {
+    const all = await getAllCryptoPrices();
+    const hit = all[slug];
+    if (hit) return hit;
+  } catch (err) {
+    console.error(`[coingecko] bulk snapshot failed, falling back for ${slug}:`, err);
+  }
+  return getCoinPrice(slug);
+}
+
 export async function getCoinHistory(slug: string, days: number): Promise<OHLCPoint[]> {
   const id = resolveId(slug);
 

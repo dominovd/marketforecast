@@ -146,6 +146,42 @@ export async function getCommodityPrice(slug: string): Promise<CommodityPrice> {
   };
 }
 
+// Last known GOOD price per slug, kept for a week.
+//
+// Twelve Data's free tier allows 8 requests/minute. The homepage asks for five
+// commodities at once, so a cold cache plus any concurrent asset-page traffic
+// reliably trips a 429 on most of them. The old behaviour was to silently
+// substitute hardcoded numbers from mock-assets.ts, which meant the site
+// published invented prices that looked exactly like live ones.
+//
+// Real-but-stale beats fake-but-fresh, so we remember the last successful
+// reading and serve that instead, flagged so the UI can say so.
+const LAST_GOOD_TTL = 7 * 24 * 60 * 60;
+
+export interface CommodityPriceResult extends CommodityPrice {
+  /** True when this came from the last-good cache rather than a live fetch. */
+  stale: boolean;
+  /** When the underlying reading was taken. */
+  asOf: string;
+}
+
+export async function getCommodityPriceResilient(slug: string): Promise<CommodityPriceResult | null> {
+  const lastGoodKey = `td:lastgood:${slug}`;
+  try {
+    const fresh = await getCommodityPrice(slug);
+    const result: CommodityPriceResult = { ...fresh, stale: false, asOf: new Date().toISOString() };
+    await setCached(lastGoodKey, result, LAST_GOOD_TTL);
+    return result;
+  } catch (err) {
+    console.error(`[twelvedata] live fetch failed for ${slug}, trying last-good:`, err);
+    const lastGood = await getCached<CommodityPriceResult>(lastGoodKey);
+    if (lastGood) return { ...lastGood, stale: true };
+    // Nothing real has ever been recorded for this slug — say nothing rather
+    // than make something up.
+    return null;
+  }
+}
+
 export async function getCommodityPriceArray(slug: string): Promise<number[]> {
   // Default to 180 daily points so MACD(26)/EMA50/ATR(14) all have headroom.
   const history = await getCommodityHistory(slug, 180);

@@ -71,7 +71,7 @@ export default async function HomePage() {
         <div className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full mb-4"
           style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}>
           <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-          Live market data · AI analysis updated every 24h
+          Live market data · AI commentary refreshed weekly
         </div>
         <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">
           Market Price Forecast <span style={{ color: '#3b82f6' }}>2026</span>
@@ -86,24 +86,30 @@ export default async function HomePage() {
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-4 sm:gap-6">
           <div>
             <p className="text-xs" style={{ color: '#64748b' }}>Total Crypto Market Cap</p>
-            <p className="text-lg font-bold text-white">{topbar.totalMarketCap}</p>
+            <p className="text-lg font-bold text-white">{topbar.totalMarketCap ?? '—'}</p>
           </div>
           <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
           <div>
             <p className="text-xs" style={{ color: '#64748b' }}>BTC Dominance</p>
-            <p className="text-lg font-bold text-white">{topbar.btcDominance}</p>
+            <p className="text-lg font-bold text-white">{topbar.btcDominance ?? '—'}</p>
           </div>
           <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
           <div>
-            <p className="text-xs" style={{ color: '#64748b' }}>Fear & Greed</p>
-            <p className="text-lg font-bold" style={{ color: fearGreedColor(topbar.fearGreed.value) }}>
-              {topbar.fearGreed.value} — {topbar.fearGreed.label}
-            </p>
+            <p className="text-xs" style={{ color: '#64748b' }}>Fear &amp; Greed</p>
+            {topbar.fearGreed ? (
+              <p className="text-lg font-bold" style={{ color: fearGreedColor(topbar.fearGreed.value) }}>
+                {topbar.fearGreed.value} — {topbar.fearGreed.label}
+              </p>
+            ) : (
+              <p className="text-lg font-bold text-white">—</p>
+            )}
           </div>
           <div className="hidden sm:block w-px h-8" style={{ background: '#1e2a3a' }} />
           <div>
             <p className="text-xs" style={{ color: '#64748b' }}>Gold Price</p>
-            <p className="text-lg font-bold text-white">${formatPrice(topbar.goldPrice)}</p>
+            <p className="text-lg font-bold text-white">
+              {topbar.goldPrice !== null ? `$${formatPrice(topbar.goldPrice)}` : '—'}
+            </p>
           </div>
           <div className="col-span-2 sm:ml-auto text-xs" style={{ color: '#475569' }}>
             ⚠️ Not financial advice. Analysis only.
@@ -142,7 +148,15 @@ export default async function HomePage() {
                   </div>
                 </div>
                 <div className="col-span-2 text-right">
-                  <p className="text-sm font-semibold text-white">${formatPrice(asset.price)}</p>
+                  <p className="text-sm font-semibold text-white">
+                    ${formatPrice(asset.price)}
+                    {asset.stale && (
+                      <span className="ml-1 text-xs font-normal" style={{ color: '#f59e0b' }}
+                        title="Upstream unavailable — showing the last confirmed reading">
+                        ·delayed
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="col-span-2 text-right">
                   <ChangeChip value={asset.change24h} />
@@ -190,7 +204,15 @@ export default async function HomePage() {
                   </div>
                 </div>
                 <div className="col-span-2 text-right">
-                  <p className="text-sm font-semibold text-white">${formatPrice(asset.price)}</p>
+                  <p className="text-sm font-semibold text-white">
+                    ${formatPrice(asset.price)}
+                    {asset.stale && (
+                      <span className="ml-1 text-xs font-normal" style={{ color: '#f59e0b' }}
+                        title="Upstream unavailable — showing the last confirmed reading">
+                        ·delayed
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="col-span-2 text-right">
                   <ChangeChip value={asset.change24h} />
@@ -271,7 +293,7 @@ export default async function HomePage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {[
             { icon: '📡', title: 'Live Market Data', desc: 'Price, volume, and indicators pulled from market APIs every 15 minutes across 40+ assets.' },
-            { icon: '🤖', title: 'AI Analysis', desc: 'Claude AI analyzes technical indicators, price action, and news sentiment to generate conditional scenarios — refreshed every 24 hours.' },
+            { icon: '🤖', title: 'Calibrated Forecasts', desc: 'Scenario ranges and probabilities come from a backtested statistical model, not from the language model. Claude writes the commentary around those numbers.' },
             { icon: '📊', title: 'Market Regimes', desc: 'Each asset is classified into uptrend, downtrend, sideways, or chaotic regime based on momentum and volatility metrics.' },
           ].map(item => (
             <div key={item.title} className="text-center">
