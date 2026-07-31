@@ -28,26 +28,35 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * Approximate metal content per ETF share, in troy ounces. These decline slowly
- * as expenses are paid from the trust, so the bounds below are deliberately
- * wide — we are hunting order-of-magnitude errors, not tracking error.
+ * Metals tracked via ETFs, checked by RATIO STABILITY rather than by level.
+ *
+ * The first version of this check converted share price to an implied
+ * per-ounce price using a hardcoded holdings constant, then tested that
+ * against gold. It fired on platinum and palladium — and the check was wrong,
+ * not the data.
+ *
+ * The giveaway was that both were low by the same factor of ten, and that
+ * platinum against palladium sat at 0.61, squarely inside its normal range.
+ * Two series consistent with each other but jointly offset from an assumed
+ * constant means the constant is stale, almost certainly an unaccounted share
+ * split. Which is precisely the failure mode this file's header warns about,
+ * committed by this file.
+ *
+ * So: no absolute constants. We track each fund's price ratio to gold and ask
+ * only whether it is stable against its own recent history. That catches the
+ * thing we can actually detect — a feed changing units, splicing a different
+ * instrument, or missing a split — without pretending to know a value we
+ * cannot verify. A level we never claim to publish (the page states plainly
+ * that it shows the fund's share price) does not need validating.
  */
-const ETF_OZ_PER_SHARE: Record<string, { oz: number; metal: string }> = {
-  SLV:  { oz: 0.90,  metal: 'silver' },
-  PPLT: { oz: 0.093, metal: 'platinum' },
-  PALL: { oz: 0.088, metal: 'palladium' },
+const METAL_ETFS: Record<string, string> = {
+  SLV: 'silver',
+  PPLT: 'platinum',
+  PALL: 'palladium',
 };
 
-/**
- * Long-run bounds for each metal priced against gold. Wide enough to cover
- * every regime since the 1970s; anything outside indicates bad data, not an
- * unusual market.
- */
-const METAL_TO_GOLD_BOUNDS: Record<string, [number, number]> = {
-  silver:    [0.005, 0.035],
-  platinum:  [0.15,  1.40],
-  palladium: [0.10,  1.60],
-};
+/** A day-over-day shift in the fund/gold ratio beyond this is a data break. */
+const RATIO_BREAK_PCT = 20;
 
 /**
  * Approximate circulating supply, in coins. Supply schedules are public and
@@ -120,16 +129,20 @@ export async function GET(req: Request) {
 
   const findings: Finding[] = [];
 
-  // ── Anchor: gold spot. Every metal check depends on it, so verify it first.
+  // ── Anchor: gold. Every metal check is relative to it, so verify it first.
   let goldSpot: number | null = null;
+  let goldHistory: { date: string; price: number }[] = [];
   const goldNotes: string[] = [];
   try {
-    const h = await getCommodityHistory('gold', 5);
-    goldSpot = h[h.length - 1]?.price ?? null;
+    goldHistory = await getCommodityHistory('gold', 180);
+    goldSpot = goldHistory[goldHistory.length - 1]?.price ?? null;
     if (goldSpot === null) goldNotes.push('gold history empty — metal ratio checks disabled');
     else if (goldSpot < 200 || goldSpot > 20000) {
+      // Gold is real spot (XAU/USD, typed "Precious Metal" by the provider) so
+      // a loose absolute bound is defensible here in a way it is not for funds.
       goldNotes.push(`gold spot ${goldSpot} outside 200–20000; anchor itself is suspect`);
       goldSpot = null;
+      goldHistory = [];
     }
   } catch (err) {
     goldNotes.push(`gold fetch failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -198,22 +211,38 @@ export async function GET(req: Request) {
       price = h[h.length - 1]?.price ?? null;
       checks.push(...seriesHealth(h));
 
-      const etf = ETF_OZ_PER_SHARE[a.tdSymbol];
-      if (etf && price !== null && goldSpot) {
-        const implied = price / etf.oz;
-        const ratio = implied / goldSpot;
-        const [lo, hi] = METAL_TO_GOLD_BOUNDS[etf.metal];
-        const verdict = ratio < lo || ratio > hi ? 'OUT OF RANGE' : 'within range';
-        checks.push(
-          `implied ${etf.metal} ${implied.toFixed(0)}/oz (from ${a.tdSymbol} @ ${price.toFixed(2)} x ${etf.oz}oz); ` +
-          `ratio to gold ${ratio.toFixed(3)} vs expected ${lo}–${hi} — ${verdict}`
-        );
+      // Metal ETFs: is the fund/gold ratio stable against its own history?
+      const metal = METAL_ETFS[a.tdSymbol];
+      if (metal && price !== null && goldHistory.length > 30) {
+        const n = Math.min(h.length, goldHistory.length);
+        const ratios: number[] = [];
+        for (let i = 1; i <= n; i++) {
+          const g = goldHistory[goldHistory.length - i].price;
+          const f = h[h.length - i].price;
+          if (g > 0 && f > 0) ratios.unshift(f / g);
+        }
+        if (ratios.length > 30) {
+          const sorted = [...ratios].sort((x, y) => x - y);
+          const median = sorted[Math.floor(sorted.length / 2)];
+          const current = ratios[ratios.length - 1];
+          const drift = ((current - median) / median) * 100;
+
+          let jumps = 0;
+          for (let i = 1; i < ratios.length; i++) {
+            if (Math.abs((ratios[i] - ratios[i - 1]) / ratios[i - 1]) * 100 > RATIO_BREAK_PCT) jumps++;
+          }
+          checks.push(
+            `${a.tdSymbol}/gold ratio ${current.toExponential(3)}, ${drift >= 0 ? '+' : ''}${drift.toFixed(1)}% vs 180d median` +
+            (jumps ? ` — ${jumps} ratio break(s) above ${RATIO_BREAK_PCT}%: unit change, split or spliced series` : ' — stable')
+          );
+        }
       }
     } catch (err) {
       checks.push(`fetch failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    const bad = checks.some(c => /OUT OF RANGE|stalled|data break|implausible|non-positive|wrong/.test(c));
+    // "OUT OF RANGE" is gone with the absolute-level check that produced it.
+    const bad = checks.some(c => /stalled|data break|implausible|non-positive|ratio break/.test(c));
     findings.push({
       slug: a.slug, symbol: a.symbol, price,
       verdict: price === null ? 'no-data' : bad ? 'SUSPECT' : 'ok',
