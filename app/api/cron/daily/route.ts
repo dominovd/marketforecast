@@ -63,6 +63,16 @@ export async function GET(req: Request) {
   ];
 
   for (const asset of assets) {
+    // Assets with no data source are a deliberate configuration choice, not a
+    // fault: aluminium has no proxy that is actually aluminium (DBB is a
+    // three-metal basket) and coffee lost its free source when the JO ETN was
+    // delisted. Reporting them as failures would mean this job cries wolf on
+    // every single run, and a real failure would be lost in the noise.
+    if (!asset.isCrypto && !asset.tdSymbol) {
+      skipped.push(`${asset.slug} (no data source configured — intentional)`);
+      continue;
+    }
+
     try {
       let prices: number[];
       if (asset.isCrypto) {
