@@ -146,9 +146,11 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
     forecast: forecast ?? undefined,
   };
 
-  // Cache full asset for 5 minutes
+  // Matches the 900s ISR on the asset routes. A shorter TTL here would expire
+  // before the page regenerates, so every regeneration would miss the cache and
+  // refetch upstream — paying the Redis round-trip for nothing.
   try {
-    await setCached(cacheKey, asset, 300);
+    await setCached(cacheKey, asset, 900);
   } catch { /* ignore cache write errors */ }
 
   return asset;

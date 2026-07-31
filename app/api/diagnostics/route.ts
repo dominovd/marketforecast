@@ -17,9 +17,14 @@ export const revalidate = 0;
 
 interface Probe {
   ok: boolean;
+  /** Set when the dependency is configured and working but currently throttled. */
+  warning?: boolean;
   detail: string;
   ms?: number;
 }
+
+/** Thrown by a probe when the upstream is healthy but currently throttling us. */
+class RateLimited extends Error {}
 
 async function timed(fn: () => Promise<string>): Promise<Probe> {
   const t0 = Date.now();
@@ -27,6 +32,14 @@ async function timed(fn: () => Promise<string>): Promise<Probe> {
     const detail = await fn();
     return { ok: true, detail, ms: Date.now() - t0 };
   } catch (err) {
+    if (err instanceof RateLimited) {
+      return {
+        ok: true,
+        warning: true,
+        detail: `throttled (integration healthy): ${err.message}`,
+        ms: Date.now() - t0,
+      };
+    }
     return {
       ok: false,
       detail: err instanceof Error ? err.message : String(err),
@@ -100,6 +113,11 @@ export async function GET(req: Request) {
       { cache: 'no-store', signal: AbortSignal.timeout(15000) }
     );
     const j = await r.json();
+    // 429 here is the free tier's 8-req/minute cap, which THIS PROBE helps
+    // exhaust by adding a call on top of normal traffic. The integration is
+    // fine — commodity history is cached 24h and the app retries with backoff.
+    // Reporting it as a hard failure sends you chasing a non-problem.
+    if (j.code === 429) throw new RateLimited(j.message ?? 'rate limited');
     if (j.status === 'error') throw new Error(`code ${j.code}: ${j.message}`);
     return `${j?.values?.length ?? 0} candles`;
   });
@@ -177,11 +195,16 @@ export async function GET(req: Request) {
   }
 
   const failing = Object.entries(probes).filter(([, p]) => !p.ok).map(([k]) => k);
+  const warned = Object.entries(probes).filter(([, p]) => p.warning).map(([k]) => k);
 
   return NextResponse.json(
     {
       checkedAt: new Date().toISOString(),
-      summary: failing.length ? `FAILING: ${failing.join(', ')}` : 'all probes ok',
+      summary: failing.length
+        ? `FAILING: ${failing.join(', ')}`
+        : warned.length
+          ? `ok (throttled: ${warned.join(', ')})`
+          : 'all probes ok',
       env,
       relevantEnvVarNamesPresent: relevant,
       probes,

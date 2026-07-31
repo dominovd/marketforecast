@@ -39,7 +39,7 @@ export interface HomepageData {
 }
 
 const CACHE_KEY = 'homepage:v1';
-const CACHE_TTL = 5 * 60; // 5 min
+const CACHE_TTL = 10 * 60; // matches the 600s ISR on app/page.tsx
 
 // Cheap regime classifier — homepage only needs a label, not real indicator
 // math. Uses 30d % change as a rough trend signal. Asset detail pages still

@@ -4,9 +4,10 @@ import { ALL_ASSETS_LIST } from '@/data/mock-assets';
 import { CRYPTO_REGISTRY, COMMODITY_REGISTRY } from '@/data/asset-registry';
 import { getHomepageData } from '@/lib/data/getHomepageData';
 
-// ISR: revalidate the homepage every 5 min so prices stay reasonably fresh
-// without hammering CoinGecko / Twelve Data on every visit.
-export const revalidate = 300;
+// ISR: 10 minutes. Kept tighter than the 15-minute asset pages because this is
+// a single high-traffic page where stale prices are most visible, and one page
+// regenerating costs far fewer Upstash commands than 43 of them.
+export const revalidate = 600;
 
 export const metadata: Metadata = {
   title: 'MarketForecast — AI-Powered Price Predictions for Crypto & Commodities 2026',
@@ -269,7 +270,7 @@ export default async function HomePage() {
         <h2 className="text-lg font-bold text-white mb-6 text-center">How MarketForecast Works</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {[
-            { icon: '📡', title: 'Live Market Data', desc: 'Price, volume, and indicators pulled from market APIs every 5 minutes across 40+ assets.' },
+            { icon: '📡', title: 'Live Market Data', desc: 'Price, volume, and indicators pulled from market APIs every 15 minutes across 40+ assets.' },
             { icon: '🤖', title: 'AI Analysis', desc: 'Claude AI analyzes technical indicators, price action, and news sentiment to generate conditional scenarios — refreshed every 24 hours.' },
             { icon: '📊', title: 'Market Regimes', desc: 'Each asset is classified into uptrend, downtrend, sideways, or chaotic regime based on momentum and volatility metrics.' },
           ].map(item => (

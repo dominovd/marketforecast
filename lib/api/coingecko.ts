@@ -43,7 +43,7 @@ function buildHeaders(): HeadersInit {
 
 async function fetchCG(path: string, attempt = 1): Promise<unknown> {
   const res = await fetch(`${PUBLIC_BASE}${path}`, {
-    next: { revalidate: 300 }, // 5 min Next.js cache
+    next: { revalidate: 600 }, // Next.js Data Cache; aligned with homepage ISR
     headers: buildHeaders(),
     signal: AbortSignal.timeout(12000),
   });

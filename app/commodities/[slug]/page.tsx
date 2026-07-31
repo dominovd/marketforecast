@@ -6,7 +6,11 @@ import AssetPage from '@/components/AssetPage';
 import AssetSeoExtras from '@/components/AssetSeoExtras';
 import type { Metadata } from 'next';
 
-export const revalidate = 300; // ISR: revalidate every 5 minutes
+// ISR: 15 minutes. Each regeneration costs ~5 Upstash commands, and the free
+// tier (shared with the statusworld project) has ~288k commands/month left of
+// its 500k. At 5 minutes across 43 assets a busy month would blow past that.
+// A page titled "price prediction 2026" does not need tick-level freshness.
+export const revalidate = 900;
 
 export async function generateStaticParams() {
   return COMMODITY_SLUGS.map(slug => ({ slug: `${slug}-price-prediction-2026` }));

@@ -6,7 +6,9 @@ import AssetPage from '@/components/AssetPage';
 import AssetSeoExtras from '@/components/AssetSeoExtras';
 import type { Metadata } from 'next';
 
-export const revalidate = 300; // ISR: revalidate every 5 minutes
+// ISR: 15 minutes. See the note in app/commodities/[slug]/page.tsx — this is a
+// Upstash command-quota decision, not a data-freshness one.
+export const revalidate = 900;
 
 export async function generateStaticParams() {
   return CRYPTO_SLUGS.map(slug => ({ slug: `${slug}-price-prediction-2026` }));

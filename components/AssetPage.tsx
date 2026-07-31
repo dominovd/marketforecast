@@ -450,7 +450,7 @@ export default function AssetPage({ asset }: { asset: Asset }) {
           <div className="rounded-lg p-4" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)' }}>
             <p className="text-xs font-medium mb-1" style={{ color: '#60a5fa' }}>How this analysis works</p>
             <p className="text-xs" style={{ color: '#64748b' }}>
-              Data is fetched from market APIs every 5 minutes. AI analysis is regenerated every 24 hours using current indicators, price action, and news sentiment. Scenarios are conditional, not predictions.
+              Prices refresh every 15 minutes; 180-day history daily. Scenario ranges and probabilities come from a calibrated statistical model, not from the language model — the AI writes the commentary around those numbers, and is regenerated weekly. Scenarios are conditional, not predictions.
             </p>
           </div>
         </div>

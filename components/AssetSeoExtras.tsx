@@ -27,7 +27,7 @@ function buildFaq(asset: Asset): { q: string; a: string }[] {
     },
     {
       q: `What is the current ${asset.name} price today?`,
-      a: `${asset.name} (${asset.symbol}) is trading at ${priceStr}, with a 24-hour change of ${change24Str} and a 30-day change of ${asset.change30d > 0 ? '+' : ''}${asset.change30d}%. Prices refresh every 5 minutes from market data APIs.`,
+      a: `${asset.name} (${asset.symbol}) is trading at ${priceStr}, with a 24-hour change of ${change24Str} and a 30-day change of ${asset.change30d > 0 ? '+' : ''}${asset.change30d}%. Prices refresh every 15 minutes from market data APIs.`,
     },
     {
       q: `What factors influence the ${asset.name} forecast?`,
