@@ -107,11 +107,28 @@ export async function getHomepageData(): Promise<HomepageData> {
 
   const cryptoBulk = cryptoBulkR.status === 'fulfilled' ? cryptoBulkR.value : {};
 
+  // Hard wall-clock budget. Next aborts a page build that exceeds 60 seconds,
+  // and a previous version of this loop — sequential, with a 9-second retry
+  // ladder per slug — reliably blew past it and failed the entire deployment.
+  // Whatever has not arrived by the deadline is simply absent; the rows are
+  // dropped rather than faked, exactly as when a fetch fails outright.
+  const COMMODITY_BUDGET_MS = 20000;
+  const deadline = Date.now() + COMMODITY_BUDGET_MS;
+
   const commodityResults: (Awaited<ReturnType<typeof getCommodityPriceResilient>>)[] = [];
   for (let i = 0; i < commoditySlugs.length; i++) {
-    if (i > 0) await new Promise(r => setTimeout(r, 400));
+    if (Date.now() >= deadline) {
+      console.warn(`[homepage] commodity budget exhausted, skipping ${commoditySlugs.slice(i).join(', ')}`);
+      while (commodityResults.length < commoditySlugs.length) commodityResults.push(null);
+      break;
+    }
+    if (i > 0) await new Promise(r => setTimeout(r, 300));
     try {
-      commodityResults.push(await getCommodityPriceResilient(commoditySlugs[i]));
+      const remaining = deadline - Date.now();
+      commodityResults.push(await Promise.race([
+        getCommodityPriceResilient(commoditySlugs[i]),
+        new Promise<null>(r => setTimeout(() => r(null), Math.max(1000, remaining))),
+      ]));
     } catch {
       commodityResults.push(null);
     }

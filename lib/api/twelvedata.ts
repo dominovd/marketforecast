@@ -56,9 +56,14 @@ async function fetchTD<T>(path: string, params: Record<string, string>, attempt 
   // Rate-limited: TD returns 200 OK with { code: 429, status: 'error' } when
   // the per-minute quota is exceeded. Back off and retry up to 3 times.
   if (data.code === 429) {
-    if (attempt < 3) {
-      const wait = 1500 * (attempt + 1); // 1.5 s, 3 s, 4.5 s
-      await new Promise(r => setTimeout(r, wait));
+    // Retry budget kept deliberately small. The old ladder (1.5s + 3s + 4.5s)
+    // spent 9 seconds per slug before giving up; five commodities fetched in
+    // sequence therefore blocked for 45 seconds and blew Next's 60-second
+    // per-page build timeout, failing the whole deployment. One short retry
+    // absorbs a transient burst; anything worse should fail fast and fall back
+    // to the last-good value instead of holding the render hostage.
+    if (attempt < 1) {
+      await new Promise(r => setTimeout(r, 1200));
       return fetchTD(path, params, attempt + 1);
     }
     throw new Error(`Twelve Data rate limit (429) after ${attempt + 1} attempts`);
