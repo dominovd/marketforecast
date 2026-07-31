@@ -17,6 +17,7 @@ export default function Header() {
           <Link href="/" className="text-sm" style={{ color: '#94a3b8' }}>Markets</Link>
           <Link href="/#crypto" className="text-sm" style={{ color: '#94a3b8' }}>Crypto</Link>
           <Link href="/#commodities" className="text-sm" style={{ color: '#94a3b8' }}>Commodities</Link>
+          <Link href="/accuracy" className="text-sm" style={{ color: '#94a3b8' }}>Accuracy</Link>
           <Link href="/methodology" className="text-sm" style={{ color: '#94a3b8' }}>Methodology</Link>
         </nav>
         <div className="flex items-center gap-3">
@@ -31,6 +32,7 @@ export default function Header() {
       {open && (
         <div className="md:hidden px-4 py-3 space-y-2" style={{ borderTop: '1px solid #1e2a3a' }}>
           <Link href="/" className="block text-sm py-2" style={{ color: '#94a3b8' }}>Markets</Link>
+          <Link href="/accuracy" className="block text-sm py-2" style={{ color: '#94a3b8' }}>Accuracy</Link>
           <Link href="/methodology" className="block text-sm py-2" style={{ color: '#94a3b8' }}>Methodology</Link>
         </div>
       )}

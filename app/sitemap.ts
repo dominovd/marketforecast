@@ -24,6 +24,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: BASE, lastModified: now, changeFrequency: 'daily' as const, priority: 1.0 },
     { url: `${BASE}/about`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.5 },
     { url: `${BASE}/methodology`, lastModified: now, changeFrequency: 'monthly' as const, priority: 0.6 },
+    // Higher priority than methodology: a published track record is the main
+    // thing distinguishing this site from generic price-prediction pages.
+    { url: `${BASE}/accuracy`, lastModified: now, changeFrequency: 'daily' as const, priority: 0.8 },
   ];
 
   return [...staticPages, ...cryptoPages, ...commodityPages];

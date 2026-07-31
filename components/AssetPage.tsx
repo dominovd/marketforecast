@@ -170,6 +170,9 @@ export default function AssetPage({ asset }: { asset: Asset }) {
     return [...past, ...future];
   }, [history, asset.forecast]);
 
+  // X value of the last real close — where history ends and projection begins.
+  const lastHistoryDate = history.length ? history[history.length - 1].date : null;
+
   const allValues = chartData.flatMap(d => [
     d.price, d.projected, d.band80?.[0], d.band80?.[1],
   ].filter((v): v is number => typeof v === 'number'));
@@ -264,14 +267,27 @@ export default function AssetPage({ asset }: { asset: Asset }) {
                 <Tooltip content={<CustomTooltip />} />
                 <ReferenceLine y={asset.price} stroke={chartColor} strokeDasharray="3 3" strokeOpacity={0.4} />
 
+                {/* Vertical divider at "today" — without it the cone reads as a
+                    continuation of history rather than as a projection. */}
+                {asset.forecast && lastHistoryDate && (
+                  <ReferenceLine x={lastHistoryDate} stroke="#64748b" strokeDasharray="2 4"
+                    strokeOpacity={0.7}
+                    label={{ value: 'now', position: 'insideTopRight', fill: '#94a3b8', fontSize: 10 }} />
+                )}
+
                 {/* Forecast cone. Outer band = 80% confidence, inner = 50%.
-                    Drawn behind the price line so history stays legible. */}
-                <Area dataKey="band80" stroke="none" fill="#3b82f6" fillOpacity={0.10}
+                    Opacities are deliberately high: at 0.10/0.18 on this dark
+                    background the two bands collapsed into one navy smudge and
+                    the boundary between them was invisible. Edge strokes give
+                    the cone a readable outline against the panel. */}
+                <Area dataKey="band80" fill="#3b82f6" fillOpacity={0.20}
+                  stroke="#3b82f6" strokeOpacity={0.45} strokeWidth={1}
                   isAnimationActive={false} connectNulls />
-                <Area dataKey="band50" stroke="none" fill="#3b82f6" fillOpacity={0.18}
+                <Area dataKey="band50" fill="#60a5fa" fillOpacity={0.38}
+                  stroke="#60a5fa" strokeOpacity={0.55} strokeWidth={1}
                   isAnimationActive={false} connectNulls />
-                <Line type="monotone" dataKey="projected" stroke="#60a5fa" strokeWidth={1.5}
-                  strokeDasharray="4 3" dot={false} isAnimationActive={false} connectNulls />
+                <Line type="monotone" dataKey="projected" stroke="#93c5fd" strokeWidth={2}
+                  strokeDasharray="5 3" dot={false} isAnimationActive={false} connectNulls />
 
                 <Line type="monotone" dataKey="price" stroke={chartColor} strokeWidth={2} dot={false}
                   isAnimationActive={false} />
@@ -280,13 +296,21 @@ export default function AssetPage({ asset }: { asset: Asset }) {
 
             {asset.forecast && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs" style={{ color: '#64748b' }}>
+                {/* Swatches mirror the rendered fills exactly, including the
+                    border, so the legend cannot drift from the chart. */}
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-2 rounded-sm inline-block" style={{ background: 'rgba(59,130,246,0.18)' }} />
+                  <span className="w-3.5 h-2.5 rounded-sm inline-block"
+                    style={{ background: 'rgba(96,165,250,0.38)', border: '1px solid rgba(96,165,250,0.55)' }} />
                   50% confidence
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-2 rounded-sm inline-block" style={{ background: 'rgba(59,130,246,0.10)' }} />
+                  <span className="w-3.5 h-2.5 rounded-sm inline-block"
+                    style={{ background: 'rgba(59,130,246,0.20)', border: '1px solid rgba(59,130,246,0.45)' }} />
                   80% confidence
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3.5 inline-block" style={{ borderTop: '2px dashed #93c5fd' }} />
+                  median
                 </span>
                 <span className="ml-auto">
                   {asset.forecast.horizonDays}d projection · {asset.forecast.annualizedVolPct.toFixed(0)}% annualized vol

@@ -33,6 +33,7 @@ export default function Footer() {
             <h4 className="text-sm font-medium text-white mb-3">Info</h4>
             <div className="space-y-2">
               <Link href="/methodology" className="block text-sm" style={{ color: '#64748b' }}>How Our Analysis Works</Link>
+            <Link href="/accuracy" className="block text-sm" style={{ color: '#64748b' }}>Forecast Accuracy</Link>
               <Link href="/about" className="block text-sm" style={{ color: '#64748b' }}>About</Link>
               <Link href="/about#contact" className="block text-sm" style={{ color: '#64748b' }}>Contact</Link>
             </div>
