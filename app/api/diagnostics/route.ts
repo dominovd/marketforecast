@@ -113,7 +113,9 @@ export async function GET(req: Request) {
       url: process.env.UPSTASH_REDIS_REST_URL,
       token: process.env.UPSTASH_REDIS_REST_TOKEN,
     });
-    const probeKey = 'diag:ping';
+    // Namespaced by hand: this probe builds its own client rather than going
+    // through lib/cache/redis.ts, so it does not inherit the 'mf:' prefix.
+    const probeKey = 'mf:diag:ping';
     await redis.set(probeKey, Date.now(), { ex: 60 });
     const got = await redis.get(probeKey);
     return `read/write ok (${got})`;
