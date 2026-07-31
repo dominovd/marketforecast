@@ -1,6 +1,24 @@
-// Claude API for AI market analysis, cached 24h in Upstash Redis
+// Claude API for AI market commentary, cached in Upstash Redis.
+//
+// IMPORTANT — role of the LLM changed in prompt-v2.
+//
+// Previously Claude invented the price targets AND the scenario probabilities.
+// That was the single biggest credibility problem on the site: an LLM cannot
+// produce calibrated probabilities, so a "35%" meant nothing, and because the
+// targets were free-text prose they could never be scored against reality.
+//
+// Now the numbers come from lib/forecast/quant.ts, which is backtested and
+// calibrated (see scripts/calibrate-forecast.ts). The model is handed those
+// numbers and asked to do the thing it is actually good at: explain WHY the
+// technical picture looks the way it does, and describe what would have to
+// happen for each scenario to play out. It is explicitly forbidden from
+// inventing its own levels or probabilities.
 import Anthropic from '@anthropic-ai/sdk';
 import { getCached, setCached } from '@/lib/cache/redis';
+import type { QuantForecast } from '@/lib/forecast/quant';
+
+// Bump when the prompt changes so ledger rows stay attributable.
+export const PROMPT_VERSION = 'prompt-v2';
 
 export interface Scenario {
   condition: string;
@@ -16,7 +34,7 @@ export interface AIAnalysis {
   keyFactors: string[];
 }
 
-interface AssetContext {
+export interface AssetContext {
   name: string;
   symbol: string;
   price: number;
@@ -32,92 +50,153 @@ interface AssetContext {
   fearGreed?: number;
 }
 
-function buildPrompt(ctx: AssetContext): string {
-  return `You are a professional quantitative market analyst. Analyze this asset and provide a structured forecast.
+/** Price formatter that survives both BTC ($97,450) and SHIB ($0.00002341). */
+export function fmtPrice(v: number): string {
+  if (!isFinite(v)) return '—';
+  if (v >= 1000) return `$${Math.round(v).toLocaleString('en-US')}`;
+  if (v >= 1) return `$${v.toFixed(2)}`;
+  if (v >= 0.01) return `$${v.toFixed(4)}`;
+  return `$${v.toFixed(8)}`;
+}
 
-Asset: ${ctx.name} (${ctx.symbol})
-Current Price: $${ctx.price.toLocaleString()}
-24h Change: ${ctx.change24h > 0 ? '+' : ''}${ctx.change24h}%
-7d Change: ${ctx.change7d > 0 ? '+' : ''}${ctx.change7d}%
-30d Change: ${ctx.change30d > 0 ? '+' : ''}${ctx.change30d}%
+function pct(p: number): string {
+  return `${Math.round(p * 100)}%`;
+}
 
-Technical Indicators:
-- RSI(14): ${ctx.rsi} ${ctx.rsi > 70 ? '(overbought)' : ctx.rsi < 30 ? '(oversold)' : '(neutral)'}
-- MACD: ${ctx.macd}
-- Bollinger Band Position: ${ctx.bbPosition} (0=lower, 1=upper band)
-- Distance from EMA50: ${ctx.ema50Distance}%
-- ATR(14): ${ctx.atr}
-- Market Regime: ${ctx.regime}
-${ctx.fearGreed !== undefined ? `- Fear & Greed Index: ${ctx.fearGreed}/100` : ''}
+function buildPrompt(ctx: AssetContext, f: QuantForecast): string {
+  return `You are a quantitative market analyst writing commentary for a public markets site.
 
-Respond ONLY with valid JSON in this exact format, no markdown, no extra text:
+A calibrated statistical model has ALREADY produced the forecast numbers below.
+Your job is to explain them — NOT to produce your own. Do not invent price
+targets, do not invent probabilities, do not contradict the ranges given.
+
+ASSET
+${ctx.name} (${ctx.symbol})
+Spot: ${fmtPrice(ctx.price)}
+Change: 24h ${ctx.change24h > 0 ? '+' : ''}${ctx.change24h}%, 7d ${ctx.change7d > 0 ? '+' : ''}${ctx.change7d}%, 30d ${ctx.change30d > 0 ? '+' : ''}${ctx.change30d}%
+
+TECHNICAL STATE
+RSI(14): ${ctx.rsi} ${ctx.rsi > 70 ? '(overbought)' : ctx.rsi < 30 ? '(oversold)' : '(neutral)'}
+MACD: ${ctx.macd}
+Bollinger position: ${ctx.bbPosition} (0 = lower band, 1 = upper band)
+Distance from EMA50: ${ctx.ema50Distance}%
+Market regime: ${ctx.regime}
+Annualized volatility: ${f.annualizedVolPct.toFixed(0)}%
+${ctx.fearGreed !== undefined ? `Fear & Greed: ${ctx.fearGreed}/100` : ''}
+
+MODEL FORECAST — ${f.horizonDays} day horizon (FIXED, do not alter)
+Key resistance: ${fmtPrice(f.resistance)}
+Key support:    ${fmtPrice(f.support)}
+Bull scenario:  above ${fmtPrice(f.resistance)}, probability ${pct(f.bull.probability)}
+Base scenario:  ${fmtPrice(f.support)} to ${fmtPrice(f.resistance)}, probability ${pct(f.base.probability)}
+Bear scenario:  below ${fmtPrice(f.support)}, probability ${pct(f.bear.probability)}
+80% confidence band: ${fmtPrice(f.interval80.low)} to ${fmtPrice(f.interval80.high)}
+
+Write the commentary. Respond ONLY with valid JSON, no markdown fences:
 {
-  "summary": "2-3 sentence technical analysis summary mentioning key indicators and near-term outlook",
-  "bull": {
-    "condition": "specific bullish trigger condition",
-    "target": "price target range and timeframe",
-    "probability": "percentage like 35%"
-  },
-  "base": {
-    "condition": "base case conditions",
-    "target": "price target range and timeframe",
-    "probability": "percentage like 45%"
-  },
-  "bear": {
-    "condition": "bearish trigger conditions",
-    "target": "support levels and downside target",
-    "probability": "percentage like 20%"
-  },
+  "summary": "3-4 sentences. What the indicators say about current positioning, what the volatility regime implies for how wide the range is, and what to watch. Reference the actual numbers above. Do not state a single 'prediction' — describe the distribution.",
+  "bull": { "condition": "what would have to happen for price to clear the resistance level" },
+  "base": { "condition": "what keeps price inside the support-resistance corridor" },
+  "bear": { "condition": "what would have to break for price to lose the support level" },
   "keyFactors": ["factor 1", "factor 2", "factor 3", "factor 4"]
 }
 
-Important: probabilities must sum to 100%. Be specific with price levels based on current price. Use analytical language.`;
+Each condition: one sentence, specific, referencing real levels or indicators.
+Never write "guaranteed", "will", or "certain" — these are conditional scenarios.`;
 }
 
-export async function getAIAnalysis(slug: string, ctx: AssetContext): Promise<AIAnalysis> {
-  const cacheKey = `ai:analysis:${slug}`;
+interface RawNarrative {
+  summary: string;
+  bull: { condition: string };
+  base: { condition: string };
+  bear: { condition: string };
+  keyFactors: string[];
+}
 
-  // Try cache first
-  const cached = await getCached<AIAnalysis>(cacheKey);
-  if (cached) return cached;
+/**
+ * Merge the LLM's prose with the model's numbers. Targets and probabilities
+ * always come from the forecast — the LLM cannot override them even if it
+ * ignores instructions and emits its own.
+ */
+function assemble(n: RawNarrative, f: QuantForecast): AIAnalysis {
+  return {
+    summary: n.summary,
+    bull: {
+      condition: n.bull.condition,
+      target: `${fmtPrice(f.bull.low)} – ${fmtPrice(f.bull.high)} (${f.horizonDays}d)`,
+      probability: pct(f.bull.probability),
+    },
+    base: {
+      condition: n.base.condition,
+      target: `${fmtPrice(f.base.low)} – ${fmtPrice(f.base.high)} (${f.horizonDays}d)`,
+      probability: pct(f.base.probability),
+    },
+    bear: {
+      condition: n.bear.condition,
+      target: `${fmtPrice(f.bear.low)} – ${fmtPrice(f.bear.high)} (${f.horizonDays}d)`,
+      probability: pct(f.bear.probability),
+    },
+    keyFactors: Array.isArray(n.keyFactors) && n.keyFactors.length
+      ? n.keyFactors.slice(0, 6)
+      : ['Volatility regime', 'Momentum', 'Macro conditions', 'Volume trends'],
+  };
+}
 
-  // Generate via Claude API
+/** Deterministic commentary used when the API key is missing or Claude fails. */
+export function templatedNarrative(ctx: AssetContext, f: QuantForecast): AIAnalysis {
+  const dir = ctx.ema50Distance > 0 ? 'above' : 'below';
+  return assemble(
+    {
+      summary:
+        `${ctx.name} is trading in a ${ctx.regime} regime with RSI at ${ctx.rsi} and price ${dir} its EMA50 by ` +
+        `${Math.abs(ctx.ema50Distance)}%. Annualized volatility of ${f.annualizedVolPct.toFixed(0)}% implies an 80% ` +
+        `chance the ${f.horizonDays}-day close lands between ${fmtPrice(f.interval80.low)} and ${fmtPrice(f.interval80.high)}. ` +
+        `Key levels to watch are support at ${fmtPrice(f.support)} and resistance at ${fmtPrice(f.resistance)}.`,
+      bull: { condition: `A sustained break above ${fmtPrice(f.resistance)} on rising volume` },
+      base: { condition: `Price continues to oscillate between ${fmtPrice(f.support)} and ${fmtPrice(f.resistance)}` },
+      bear: { condition: `A decisive loss of ${fmtPrice(f.support)} with follow-through selling` },
+      keyFactors: ['Volatility regime', 'Momentum', 'Macro conditions', 'Volume trends'],
+    },
+    f
+  );
+}
+
+export async function getAIAnalysis(
+  slug: string,
+  ctx: AssetContext,
+  forecast: QuantForecast
+): Promise<AIAnalysis> {
+  // Cache key includes the prompt version so a prompt change invalidates
+  // cleanly instead of serving stale narratives written under the old rules.
+  const cacheKey = `ai:narrative:${PROMPT_VERSION}:${slug}`;
+
+  const cached = await getCached<RawNarrative>(cacheKey);
+  // Re-assemble on every request: the prose is cached for 7 days but the
+  // NUMBERS must stay fresh, since the forecast is recomputed from live prices.
+  if (cached) return assemble(cached, forecast);
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
+  if (!apiKey) return templatedNarrative(ctx, forecast);
 
   const client = new Anthropic({ apiKey });
-
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1024,
-    messages: [
-      {
-        role: 'user',
-        content: buildPrompt(ctx),
-      },
-    ],
+    messages: [{ role: 'user', content: buildPrompt(ctx, forecast) }],
   });
 
   const text = message.content[0].type === 'text' ? message.content[0].text : '';
 
-  let analysis: AIAnalysis;
+  let narrative: RawNarrative;
   try {
-    // Strip any markdown code fences just in case
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    analysis = JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned) as RawNarrative;
+    if (!parsed.summary || !parsed.bull?.condition) throw new Error('incomplete narrative');
+    narrative = parsed;
   } catch {
-    // Fallback if JSON parse fails
-    analysis = {
-      summary: `${ctx.name} is currently in a ${ctx.regime} regime with RSI at ${ctx.rsi}. Price is ${ctx.ema50Distance > 0 ? 'above' : 'below'} EMA50 by ${Math.abs(ctx.ema50Distance)}%. Monitor key support and resistance levels.`,
-      bull: { condition: 'If price breaks above resistance with volume', target: `${Math.round(ctx.price * 1.15).toLocaleString()}–${Math.round(ctx.price * 1.25).toLocaleString()}`, probability: '30%' },
-      base: { condition: 'If current trend maintains', target: `${Math.round(ctx.price * 1.05).toLocaleString()}–${Math.round(ctx.price * 1.12).toLocaleString()}`, probability: '50%' },
-      bear: { condition: 'If macro conditions deteriorate', target: `${Math.round(ctx.price * 0.85).toLocaleString()}–${Math.round(ctx.price * 0.90).toLocaleString()}`, probability: '20%' },
-      keyFactors: ['Market sentiment', 'Technical momentum', 'Macro conditions', 'Volume trends'],
-    };
+    return templatedNarrative(ctx, forecast);
   }
 
-  // Cache for 24 hours
-  await setCached(cacheKey, analysis, 604800); // 7 days
-
-  return analysis;
+  await setCached(cacheKey, narrative, 604800); // 7 days
+  return assemble(narrative, forecast);
 }

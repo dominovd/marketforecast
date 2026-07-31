@@ -2,7 +2,8 @@
 // All slug → metadata lookups read from data/asset-registry.ts (single source of truth).
 import { getCached, setCached } from '@/lib/cache/redis';
 import { calcRSI, calcMACD, calcBBPosition, calcEMA50Distance, calcATR, classifyRegime } from '@/lib/indicators';
-import { getAIAnalysis } from '@/lib/ai/analysis';
+import { getAIAnalysis, templatedNarrative, type AssetContext } from '@/lib/ai/analysis';
+import { buildForecast } from '@/lib/forecast/quant';
 import { getNewsForAsset, NewsItem } from '@/lib/api/news';
 import { getFearGreed } from '@/lib/api/feargreed';
 import { ASSETS, type Asset } from '@/data/mock-assets';
@@ -90,23 +91,35 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
     priceArr,
   ) : 0;
 
-  // AI analysis (cached 7d separately). On failure, fall back to a templated summary.
+  // Calibrated distributional forecast. This — not the LLM — is the source of
+  // every price target and probability shown on the page.
+  const forecast = buildForecast(priceArr, { horizonDays: 30 });
+
+  const aiCtx: AssetContext = {
+    name: meta.name,
+    symbol: meta.symbol,
+    price: prices.price,
+    change24h: prices.change24h,
+    change7d: prices.change7d,
+    change30d: prices.change30d,
+    rsi, macd, bbPosition, ema50Distance, atr,
+    regime,
+    fearGreed: fearGreedData?.value,
+  };
+
+  // Narrative wraps the forecast. Without enough history to fit the model we
+  // fall back to the old templated copy rather than publishing made-up numbers.
   let aiAnalysis;
-  try {
-    aiAnalysis = await getAIAnalysis(slug, {
-      name: meta.name,
-      symbol: meta.symbol,
-      price: prices.price,
-      change24h: prices.change24h,
-      change7d: prices.change7d,
-      change30d: prices.change30d,
-      rsi, macd, bbPosition, ema50Distance, atr,
-      regime,
-      fearGreed: fearGreedData?.value,
-    });
-  } catch (err) {
-    console.error(`[getAssetData] AI analysis failed for ${slug}:`, err);
+  if (!forecast) {
+    console.error(`[getAssetData] insufficient history to fit forecast for ${slug}`);
     aiAnalysis = templatedAnalysis(meta, prices.price, regime, rsi);
+  } else {
+    try {
+      aiAnalysis = await getAIAnalysis(slug, aiCtx, forecast);
+    } catch (err) {
+      console.error(`[getAssetData] AI narrative failed for ${slug}:`, err);
+      aiAnalysis = templatedNarrative(aiCtx, forecast);
+    }
   }
 
   const asset: AssetWithHistory = {
@@ -130,6 +143,7 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
     // Pass the real 180-day history to the client — chart renders directly
     // from this instead of generating a random walk anchored to current price.
     priceHistory: history.map(p => ({ date: p.date, price: p.price })),
+    forecast: forecast ?? undefined,
   };
 
   // Cache full asset for 5 minutes

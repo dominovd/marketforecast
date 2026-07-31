@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import {
+  ComposedChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
+} from 'recharts';
 import { Asset, generatePriceHistory, Regime, Sentiment } from '@/data/mock-assets';
 
 function fmt(n: number, decimals = 2) {
@@ -96,6 +98,15 @@ function FearGreedGauge({ value }: { value: number }) {
   );
 }
 
+/** A row in the chart series — past rows carry `price`, future rows carry bands. */
+interface ChartRow {
+  date: string;
+  price?: number;
+  projected?: number;
+  band80?: [number, number];
+  band50?: [number, number];
+}
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -119,11 +130,51 @@ export default function AssetPage({ asset }: { asset: Asset }) {
     return generatePriceHistory(asset.price, asset.price * 0.028, asset.change30d / 100, 180);
   }, [asset.slug, asset.priceHistory, asset.price, asset.change30d]);
 
-  const chartData = priceHistory.slice(-period);
-  const chartMin = Math.min(...chartData.map(d => d.price)) * 0.985;
-  const chartMax = Math.max(...chartData.map(d => d.price)) * 1.015;
+  const history = priceHistory.slice(-period);
   const isUp = asset.change24h >= 0;
   const chartColor = isUp ? '#10b981' : '#ef4444';
+
+  // Forecast cone: project the model's confidence bands forward from today.
+  // The bands widen with sqrt(t), so we interpolate each future day rather than
+  // drawing a rectangle — a cone is an honest picture of how uncertainty grows,
+  // a flat band is not.
+  const chartData = useMemo(() => {
+    const past: ChartRow[] = history.map(d => ({ date: d.date, price: d.price }));
+    const f = asset.forecast;
+    if (!f) return past;
+
+    const spot = f.issuedPrice;
+    const steps = 10; // sampled points along the horizon, keeps the SVG light
+    const future: ChartRow[] = [];
+    for (let i = 1; i <= steps; i++) {
+      const t = (i / steps) * f.horizonDays;
+      const scale = Math.sqrt(t / f.horizonDays); // sqrt-of-time widening
+      const d = new Date();
+      d.setDate(d.getDate() + Math.round(t));
+      const interp = (target: number) =>
+        spot * Math.exp(Math.log(target / spot) * scale);
+      future.push({
+        date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        band80: [interp(f.interval80.low), interp(f.interval80.high)],
+        band50: [interp(f.interval50.low), interp(f.interval50.high)],
+        projected: interp(f.median),
+      });
+    }
+    // Stitch the cone onto the last real close so there is no visual gap.
+    const last = past[past.length - 1];
+    if (last && typeof last.price === 'number') {
+      last.band80 = [last.price, last.price];
+      last.band50 = [last.price, last.price];
+      last.projected = last.price;
+    }
+    return [...past, ...future];
+  }, [history, asset.forecast]);
+
+  const allValues = chartData.flatMap(d => [
+    d.price, d.projected, d.band80?.[0], d.band80?.[1],
+  ].filter((v): v is number => typeof v === 'number'));
+  const chartMin = Math.min(...allValues) * 0.985;
+  const chartMax = Math.max(...allValues) * 1.015;
 
   const indicatorCards = [
     { label: 'MACD Signal', value: asset.indicators.macd > 0 ? `+${fmt(asset.indicators.macd)}` : fmt(asset.indicators.macd), color: asset.indicators.macd > 0 ? '#10b981' : '#ef4444', sub: asset.indicators.macd > 0 ? 'Bullish signal' : 'Bearish signal' },
@@ -199,13 +250,7 @@ export default function AssetPage({ asset }: { asset: Asset }) {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-                <defs>
-                  <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={chartColor} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={chartColor} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+              <ComposedChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
                 <XAxis dataKey="date" tick={{ fill: '#475569', fontSize: 11 }} tickLine={false} axisLine={false}
                   interval={Math.floor(chartData.length / 6)} />
                 <YAxis domain={[chartMin, chartMax]} tick={{ fill: '#475569', fontSize: 11 }} tickLine={false}
@@ -218,9 +263,36 @@ export default function AssetPage({ asset }: { asset: Asset }) {
                   }} />
                 <Tooltip content={<CustomTooltip />} />
                 <ReferenceLine y={asset.price} stroke={chartColor} strokeDasharray="3 3" strokeOpacity={0.4} />
-                <Line type="monotone" dataKey="price" stroke={chartColor} strokeWidth={2} dot={false} />
-              </LineChart>
+
+                {/* Forecast cone. Outer band = 80% confidence, inner = 50%.
+                    Drawn behind the price line so history stays legible. */}
+                <Area dataKey="band80" stroke="none" fill="#3b82f6" fillOpacity={0.10}
+                  isAnimationActive={false} connectNulls />
+                <Area dataKey="band50" stroke="none" fill="#3b82f6" fillOpacity={0.18}
+                  isAnimationActive={false} connectNulls />
+                <Line type="monotone" dataKey="projected" stroke="#60a5fa" strokeWidth={1.5}
+                  strokeDasharray="4 3" dot={false} isAnimationActive={false} connectNulls />
+
+                <Line type="monotone" dataKey="price" stroke={chartColor} strokeWidth={2} dot={false}
+                  isAnimationActive={false} />
+              </ComposedChart>
             </ResponsiveContainer>
+
+            {asset.forecast && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs" style={{ color: '#64748b' }}>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-2 rounded-sm inline-block" style={{ background: 'rgba(59,130,246,0.18)' }} />
+                  50% confidence
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-2 rounded-sm inline-block" style={{ background: 'rgba(59,130,246,0.10)' }} />
+                  80% confidence
+                </span>
+                <span className="ml-auto">
+                  {asset.forecast.horizonDays}d projection · {asset.forecast.annualizedVolPct.toFixed(0)}% annualized vol
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Indicators grid */}

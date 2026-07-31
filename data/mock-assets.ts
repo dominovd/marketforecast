@@ -50,6 +50,10 @@ export interface Asset {
   // hardcoded mock objects below remain valid; consumers should fall back to
   // generatePriceHistory() when this is absent.
   priceHistory?: { date: string; price: number }[];
+  // Calibrated distributional forecast from lib/forecast/quant.ts. Drives the
+  // forecast cone on the chart and the numbers in every scenario card.
+  // Optional because the hardcoded mock objects below predate it.
+  forecast?: import('@/lib/forecast/quant').QuantForecast;
 }
 
 export function generatePriceHistory(basePrice: number, volatility: number, trend: number, days: number) {
