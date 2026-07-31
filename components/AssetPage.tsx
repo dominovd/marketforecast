@@ -408,7 +408,12 @@ export default function AssetPage({ asset }: { asset: Asset }) {
             <h2 className="font-semibold text-white mb-3">Latest News</h2>
             <div className="space-y-2">
               {asset.news.map((n, i) => (
-                <a key={i} href={n.url} className="card p-4 flex items-start gap-3 hover:border-blue-500/40 transition-all block">
+                // nofollow because these are pulled from a news API and never
+                // reviewed by us — we cannot vouch for what we did not curate.
+                // noopener guards against the linked page reaching back through
+                // window.opener.
+                <a key={i} href={n.url} target="_blank" rel="nofollow noopener"
+                  className="card p-4 flex items-start gap-3 hover:border-blue-500/40 transition-all block">
                   <SentimentDot s={n.sentiment} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white leading-snug">{n.title}</p>
@@ -437,7 +442,10 @@ export default function AssetPage({ asset }: { asset: Asset }) {
             <p className="text-xs mb-4" style={{ color: '#64748b' }}>Trusted platforms to get exposure to {asset.name}</p>
             <div className="space-y-3">
               {asset.affiliates.map(a => (
-                <a key={a.name} href={a.url}
+                // rel="sponsored" is REQUIRED by Google for affiliate and paid
+                // links, not optional. Leaving these as plain follow links is a
+                // link-spam policy violation and grounds for a manual action.
+                <a key={a.name} href={a.url} target="_blank" rel="sponsored noopener"
                   className="flex items-center justify-between w-full rounded-lg px-4 py-3 text-sm font-medium text-white transition-all hover:opacity-90"
                   style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb)', border: '1px solid rgba(59,130,246,0.3)' }}>
                   {a.label}
