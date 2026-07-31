@@ -181,14 +181,39 @@ export async function GET(req: Request) {
   });
 
   // 3. End-to-end: does a real asset actually produce a forecast right now?
-  const endToEnd: Record<string, string> = {};
+  const endToEnd: Record<string, unknown> = {};
   try {
     const { getAssetData } = await import('@/lib/data/getAssetData');
     for (const slug of ['bitcoin', 'gold']) {
       const a = await getAssetData(slug);
-      endToEnd[slug] = a
-        ? `history=${a.priceHistory?.length ?? 0}pts, forecast=${a.forecast ? 'YES' : 'NO (fallback)'}, rsi=${a.indicators.rsi}, atr=${a.indicators.atr.toFixed(4)}`
-        : 'null';
+      if (!a) { endToEnd[slug] = 'null'; continue; }
+
+      const h = a.priceHistory ?? [];
+
+      // Day-over-day jumps. The chart shows a near-vertical drop at the left
+      // edge of the 6M view — roughly $77K to $62K between the first two
+      // points — which is not plausible price action and points at a bad
+      // leading data point from the upstream series. Listing the outliers with
+      // their index says whether the artifact is in the data or in the render.
+      const jumps: string[] = [];
+      for (let i = 1; i < h.length; i++) {
+        const prev = h[i - 1].price;
+        const cur = h[i].price;
+        if (prev > 0) {
+          const pct = ((cur - prev) / prev) * 100;
+          if (Math.abs(pct) > 12) {
+            jumps.push(`i=${i} ${h[i - 1].date}->${h[i].date} ${prev.toFixed(2)}->${cur.toFixed(2)} (${pct.toFixed(1)}%)`);
+          }
+        }
+      }
+
+      endToEnd[slug] = {
+        summary: `history=${h.length}pts, forecast=${a.forecast ? 'YES' : 'NO (fallback)'}, rsi=${a.indicators.rsi}, atr=${a.indicators.atr.toFixed(4)}`,
+        first5: h.slice(0, 5).map(p => `${p.date}=${p.price.toFixed(2)}`),
+        last3: h.slice(-3).map(p => `${p.date}=${p.price.toFixed(2)}`),
+        dayJumpsOver12pct: jumps.length ? jumps : 'none',
+        duplicateDateLabels: h.length - new Set(h.map(p => p.date)).size,
+      };
     }
   } catch (err) {
     endToEnd.error = err instanceof Error ? err.message : String(err);
