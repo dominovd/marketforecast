@@ -211,7 +211,7 @@ export default function AssetPage({ asset }: { asset: Asset }) {
               <span className="text-sm px-2 py-0.5 rounded" style={{ background: '#1e2a3a', color: '#64748b' }}>{asset.symbol}</span>
               <RegimeBadge regime={asset.regime} />
             </div>
-            <p className="text-sm" style={{ color: '#64748b' }}>{asset.name} Price Prediction & Analysis 2026</p>
+            <p className="text-sm" style={{ color: '#64748b' }}>{asset.name} Price Prediction &amp; Analysis 2026</p>
           </div>
         </div>
         <div className="text-right">
@@ -234,6 +234,20 @@ export default function AssetPage({ asset }: { asset: Asset }) {
           </div>
         </div>
       </div>
+
+      {/* Proxy disclosure. Placed above the fold, immediately under the price,
+          because the number directly above it is NOT the commodity's price and
+          a reader who misses that is misinformed by everything below. */}
+      {asset.proxyNote && (
+        <div className="rounded-lg px-4 py-3 mb-6 flex items-start gap-3"
+          style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.2)' }}>
+          <span className="mt-0.5" style={{ color: '#60a5fa' }}>ⓘ</span>
+          <p className="text-xs" style={{ color: '#94a3b8' }}>
+            <strong style={{ color: '#60a5fa' }}>Proxy instrument.</strong> {asset.proxyNote}{' '}
+            Direction and volatility track the underlying commodity closely; the absolute price level does not.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">

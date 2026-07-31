@@ -30,6 +30,17 @@ export interface AssetMeta {
   coingeckoId?: string;
   // Commodity-only — Twelve Data symbol
   tdSymbol?: string;
+  /**
+   * Set when the tracked instrument is an exchange-traded PROXY rather than the
+   * commodity itself. The free Twelve Data plan gates spot metals and energy
+   * behind paid tiers, so most commodities can only be tracked via a fund.
+   *
+   * This matters because a fund's share price is NOT the commodity's price —
+   * CANE trades near $10 while sugar is about $0.20/lb. Direction and
+   * volatility track the underlying closely; the absolute level does not. When
+   * this is set, the UI states plainly what is being priced.
+   */
+  proxyNote?: string;
   // Affiliate links (footer of asset card)
   affiliates: { name: string; url: string; label: string }[];
   // Optional newsfeed keyword overrides (else derived from name+symbol)
@@ -146,58 +157,83 @@ export const ASSET_REGISTRY: AssetMeta[] = [
     tdSymbol: 'XAU/USD',
     affiliates: COMMODITY_AFFILIATES('gold'),
     newsKeywords: ['gold', 'xau', 'precious metal', 'central bank'] },
-  { slug: 'silver', name: 'Silver', symbol: 'XAG/USD', category: 'commodity', icon: '🥈',
-    tdSymbol: 'XAG/USD',
+  // Spot metals (XAG/XPT/XPD) are gated behind Twelve Data's paid tiers — the
+  // API returns 404 with "available starting with the Grow or Venture plan".
+  // Tracked via physically-backed ETFs instead; see proxyNote.
+  { slug: 'silver', name: 'Silver', symbol: 'SLV', category: 'commodity', icon: '🥈',
+    tdSymbol: 'SLV',
+    proxyNote: 'Tracked via SLV (iShares Silver Trust). Prices shown are the fund\'s share price, not spot silver per ounce.',
     affiliates: COMMODITY_AFFILIATES('silver'),
     newsKeywords: ['silver', 'xag', 'solar', 'precious metal'] },
-  { slug: 'platinum', name: 'Platinum', symbol: 'XPT/USD', category: 'commodity', icon: '⬜',
-    tdSymbol: 'XPT/USD',
+  { slug: 'platinum', name: 'Platinum', symbol: 'PPLT', category: 'commodity', icon: '⬜',
+    tdSymbol: 'PPLT',
+    proxyNote: 'Tracked via PPLT (abrdn Physical Platinum Shares ETF). Prices shown are the fund\'s share price, not spot platinum per ounce.',
     affiliates: COMMODITY_AFFILIATES('platinum'),
     newsKeywords: ['platinum', 'xpt', 'precious metal', 'auto catalyst'] },
-  { slug: 'palladium', name: 'Palladium', symbol: 'XPD/USD', category: 'commodity', icon: '◽',
-    tdSymbol: 'XPD/USD',
+  { slug: 'palladium', name: 'Palladium', symbol: 'PALL', category: 'commodity', icon: '◽',
+    tdSymbol: 'PALL',
+    proxyNote: 'Tracked via PALL (abrdn Physical Palladium Shares ETF). Prices shown are the fund\'s share price, not spot palladium per ounce.',
     affiliates: COMMODITY_AFFILIATES('palladium'),
     newsKeywords: ['palladium', 'xpd', 'precious metal', 'auto catalyst'] },
 
-  // ─── COMMODITY — energy (Twelve Data CFD symbols) ───────────────────
-  { slug: 'oil', name: 'Crude Oil', symbol: 'WTI', category: 'commodity', icon: '🛢️',
-    tdSymbol: 'WTI/USD',
+  // ─── COMMODITY — energy (ETF proxies) ───────────────────────────────
+  // WARNING: do NOT use the bare ticker "WTI" here. It resolves on Twelve Data
+  // to W&T Offshore Inc., an oil COMPANY trading near $3.50 — valid candles,
+  // completely wrong instrument. Likewise "BZ" is Kanzhun Ltd, a Chinese
+  // recruitment ADR, not Brent crude. Both were caught by the symbol probe.
+  { slug: 'oil', name: 'Crude Oil', symbol: 'USO', category: 'commodity', icon: '🛢️',
+    tdSymbol: 'USO',
+    proxyNote: 'Tracked via USO (United States Oil Fund). Prices shown are the fund\'s share price, not WTI per barrel.',
     affiliates: COMMODITY_AFFILIATES('oil'),
     newsKeywords: ['oil', 'crude', 'opec', 'wti', 'energy'] },
-  { slug: 'brent', name: 'Brent Crude Oil', symbol: 'XBR/USD', category: 'commodity', icon: '⛽',
-    tdSymbol: 'XBR/USD', // Twelve Data: Brent Spot / US Dollar (BRENT/USD is not a valid TD symbol)
+  { slug: 'brent', name: 'Brent Crude Oil', symbol: 'BNO', category: 'commodity', icon: '⛽',
+    tdSymbol: 'BNO',
+    proxyNote: 'Tracked via BNO (United States Brent Oil Fund). Prices shown are the fund\'s share price, not Brent per barrel.',
     affiliates: COMMODITY_AFFILIATES('brent'),
     newsKeywords: ['brent', 'oil', 'crude', 'opec', 'energy'] },
-  { slug: 'naturalgas', name: 'Natural Gas', symbol: 'NATGAS', category: 'commodity', icon: '🔥',
-    tdSymbol: 'NG/USD',
+  { slug: 'naturalgas', name: 'Natural Gas', symbol: 'UNG', category: 'commodity', icon: '🔥',
+    tdSymbol: 'UNG',
+    proxyNote: 'Tracked via UNG (United States Natural Gas Fund). Prices shown are the fund\'s share price, not gas per MMBtu.',
     affiliates: COMMODITY_AFFILIATES('natural-gas'),
     newsKeywords: ['natural gas', 'lng', 'natgas', 'gas price', 'energy'] },
 
-  // ─── COMMODITY — base metals (Twelve Data CFD symbols) ──────────────
-  { slug: 'copper', name: 'Copper', symbol: 'HG/USD', category: 'commodity', icon: '🔶',
-    tdSymbol: 'HG/USD',
+  // ─── COMMODITY — base metals (ETF proxies) ──────────────────────────
+  { slug: 'copper', name: 'Copper', symbol: 'CPER', category: 'commodity', icon: '🔶',
+    tdSymbol: 'CPER',
+    proxyNote: 'Tracked via CPER (United States Copper Index Fund). Prices shown are the fund\'s share price, not copper per pound.',
     affiliates: COMMODITY_AFFILIATES('copper'),
     newsKeywords: ['copper', 'hg', 'mining', 'electric vehicle', 'ev', 'green energy'] },
-  { slug: 'aluminum', name: 'Aluminum', symbol: 'ALI/USD', category: 'commodity', icon: '⬛',
-    tdSymbol: 'ALI/USD', // Aluminum futures CFD on Twelve Data (JJU ETF was delisted NYSE Oct 2020)
+  // Aluminium has no usable proxy. ALI/USD does not exist on Twelve Data, the
+  // JJU ETN was delisted in 2020, and DBB — the only resolving candidate — is a
+  // BASKET of aluminium, zinc and copper. Labelling a base-metals basket
+  // "Aluminum" would be wrong in a way a disclaimer cannot repair, so no symbol
+  // is set and the asset degrades to a clean no-data state.
+  { slug: 'aluminum', name: 'Aluminum', symbol: 'ALI', category: 'commodity', icon: '⬛',
     affiliates: COMMODITY_AFFILIATES('aluminum'),
     newsKeywords: ['aluminum', 'aluminium', 'mining', 'lme', 'industrial metal'] },
 
   // ─── COMMODITY — agriculture (NYSE-listed ETF proxies) ──────────────
+  // These already used ETFs but were presented as if they were the commodity.
+  // CANE trades near $10 while sugar is about $0.20/lb — a ~50x gap published
+  // without qualification. Now disclosed like every other proxy.
   { slug: 'wheat', name: 'Wheat', symbol: 'WEAT', category: 'commodity', icon: '🌾',
     tdSymbol: 'WEAT',
+    proxyNote: 'Tracked via WEAT (Teucrium Wheat Fund). Prices shown are the fund\'s share price, not wheat per bushel.',
     affiliates: COMMODITY_AFFILIATES('wheat'),
     newsKeywords: ['wheat', 'grain', 'cbot', 'agriculture', 'usda'] },
   { slug: 'corn', name: 'Corn', symbol: 'CORN', category: 'commodity', icon: '🌽',
     tdSymbol: 'CORN',
+    proxyNote: 'Tracked via CORN (Teucrium Corn Fund). Prices shown are the fund\'s share price, not corn per bushel.',
     affiliates: COMMODITY_AFFILIATES('corn'),
     newsKeywords: ['corn', 'maize', 'grain', 'cbot', 'agriculture', 'ethanol'] },
   { slug: 'sugar', name: 'Sugar', symbol: 'CANE', category: 'commodity', icon: '🍬',
     tdSymbol: 'CANE',
+    proxyNote: 'Tracked via CANE (Teucrium Sugar Fund). Prices shown are the fund\'s share price, not sugar per pound.',
     affiliates: COMMODITY_AFFILIATES('sugar'),
     newsKeywords: ['sugar', 'cane', 'soft commodity', 'brazil', 'agriculture'] },
-  { slug: 'coffee', name: 'Coffee', symbol: 'KC/USD', category: 'commodity', icon: '☕',
-    tdSymbol: 'KC/USD', // Coffee C futures CFD (JO ETN delisted NYSE June 2023)
+  // No usable source: KC/USD does not exist on Twelve Data, the JO ETN was
+  // delisted in 2023, and COFF (WisdomTree Coffee, LSE) requires a paid plan.
+  { slug: 'coffee', name: 'Coffee', symbol: 'KC', category: 'commodity', icon: '☕',
     affiliates: COMMODITY_AFFILIATES('coffee'),
     newsKeywords: ['coffee', 'arabica', 'soft commodity', 'brazil', 'vietnam'] },
 ];

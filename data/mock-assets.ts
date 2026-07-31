@@ -54,6 +54,10 @@ export interface Asset {
   // forecast cone on the chart and the numbers in every scenario card.
   // Optional because the hardcoded mock objects below predate it.
   forecast?: import('@/lib/forecast/quant').QuantForecast;
+  // Set when the price series comes from an exchange-traded proxy rather than
+  // the commodity itself. Surfaced in the UI so the price level is not
+  // mistaken for spot.
+  proxyNote?: string;
 }
 
 export function generatePriceHistory(basePrice: number, volatility: number, trend: number, days: number) {

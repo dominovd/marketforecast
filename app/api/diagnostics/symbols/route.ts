@@ -27,8 +27,13 @@ const CANDIDATES: Record<string, { current: string; tryList: string[]; searchTer
   silver:     { current: 'XAG/USD', tryList: ['XAG/USD', 'SLV', 'SIVR'],        searchTerm: 'silver' },
   platinum:   { current: 'XPT/USD', tryList: ['XPT/USD', 'PPLT', 'PLTM'],       searchTerm: 'platinum' },
   palladium:  { current: 'XPD/USD', tryList: ['XPD/USD', 'PALL'],               searchTerm: 'palladium' },
-  oil:        { current: 'WTI',     tryList: ['WTI', 'WTI/USD', 'CL', 'USO', 'USL'], searchTerm: 'crude oil' },
-  brent:      { current: 'XBR/USD', tryList: ['XBR/USD', 'BZ', 'BNO'],          searchTerm: 'brent' },
+  // 'WTI' and 'BZ' are deliberately NOT candidates. Both resolve with valid
+  // candles but are the wrong instrument entirely — WTI is W&T Offshore Inc
+  // (an oil company, ~$3.50/share) and BZ is Kanzhun Ltd (a Chinese
+  // recruitment ADR). Leaving them in the list would let a future run
+  // "succeed" into publishing a wrong price.
+  oil:        { current: 'USO',     tryList: ['USO', 'USL'],                    searchTerm: 'crude oil fund' },
+  brent:      { current: 'BNO',     tryList: ['BNO'],                           searchTerm: 'brent oil fund' },
   naturalgas: { current: 'NATGAS',  tryList: ['NATGAS', 'NG/USD', 'UNG', 'UNL'], searchTerm: 'natural gas' },
   copper:     { current: 'HG/USD',  tryList: ['HG/USD', 'CPER', 'COPX'],        searchTerm: 'copper' },
   aluminum:   { current: 'ALI/USD', tryList: ['ALI/USD', 'DBB', 'JJU'],         searchTerm: 'aluminum' },

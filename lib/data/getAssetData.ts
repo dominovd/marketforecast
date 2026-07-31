@@ -144,6 +144,7 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
     // from this instead of generating a random walk anchored to current price.
     priceHistory: history.map(p => ({ date: p.date, price: p.price })),
     forecast: forecast ?? undefined,
+    proxyNote: meta.proxyNote,
   };
 
   // Matches the 900s ISR on the asset routes. A shorter TTL here would expire
