@@ -173,6 +173,17 @@ export default function AssetPage({ asset }: { asset: Asset }) {
   // X value of the last real close — where history ends and projection begins.
   const lastHistoryDate = history.length ? history[history.length - 1].date : null;
 
+  // Naming the month the forecast covers matches how these are searched for
+  // ("... levels april 2026") without spawning a page per month, which would
+  // be a doorway-page pattern with 43 assets x 12 months of near-duplicates.
+  const forecastWindow = useMemo(() => {
+    const f = asset.forecast;
+    if (!f) return '';
+    const fmtDate = (iso: string) =>
+      new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${f.horizonDays}-day outlook · ${fmtDate(f.issuedAt)} → ${fmtDate(f.resolvesAt)}`;
+  }, [asset.forecast]);
+
   const allValues = chartData.flatMap(d => [
     d.price, d.projected, d.band80?.[0], d.band80?.[1],
   ].filter((v): v is number => typeof v === 'number'));
@@ -332,6 +343,54 @@ export default function AssetPage({ asset }: { asset: Asset }) {
               </div>
             )}
           </div>
+
+          {/* Support & resistance, named explicitly.
+              These levels already drove every scenario — the bull case is
+              "clears resistance", the bear case is "loses support" — but they
+              were only readable inside prose. Naming them is free: the numbers
+              are already computed, and "support / resistance" is how people
+              actually look for them. */}
+          {asset.forecast && (
+            <div>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                <h2 className="font-semibold text-white">Key Levels</h2>
+                <span className="text-xs" style={{ color: '#64748b' }}>
+                  {forecastWindow}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="card p-4" style={{ borderColor: 'rgba(239,68,68,0.25)' }}>
+                  <p className="text-xs mb-1" style={{ color: '#64748b' }}>Resistance</p>
+                  <p className="text-xl font-bold" style={{ color: '#ef4444' }}>
+                    ${fmt(asset.forecast.resistance)}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: '#475569' }}>
+                    {((asset.forecast.resistance / asset.price - 1) * 100).toFixed(1)}% above spot
+                  </p>
+                </div>
+                <div className="card p-4">
+                  <p className="text-xs mb-1" style={{ color: '#64748b' }}>Spot</p>
+                  <p className="text-xl font-bold text-white">${fmt(asset.price)}</p>
+                  <p className="text-xs mt-1" style={{ color: '#475569' }}>
+                    {asset.forecast.annualizedVolPct.toFixed(0)}% annualized vol
+                  </p>
+                </div>
+                <div className="card p-4" style={{ borderColor: 'rgba(16,185,129,0.25)' }}>
+                  <p className="text-xs mb-1" style={{ color: '#64748b' }}>Support</p>
+                  <p className="text-xl font-bold" style={{ color: '#10b981' }}>
+                    ${fmt(asset.forecast.support)}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: '#475569' }}>
+                    {((asset.forecast.support / asset.price - 1) * 100).toFixed(1)}% below spot
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs mt-2" style={{ color: '#475569' }}>
+                Levels are the 60-day swing high and low, held at least half a horizon-sigma away from spot.
+                They define the scenario boundaries below.
+              </p>
+            </div>
+          )}
 
           {/* Indicators grid */}
           <div>

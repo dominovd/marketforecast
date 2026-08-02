@@ -30,6 +30,13 @@ export interface ForecastScenario {
 }
 
 export interface QuantForecast {
+  /**
+   * ISO timestamp of issue, and the horizon end date. Computed server-side so
+   * the client renders a fixed string — deriving it in the browser would drift
+   * from the server render and trip hydration.
+   */
+  issuedAt: string;
+  resolvesAt: string;
   /** Price at the moment the forecast was issued. */
   issuedPrice: number;
   /** Forecast horizon in calendar days. */
@@ -302,7 +309,10 @@ export function buildForecast(
   const pBear = 1 - probAbove(support);
   const pBase = Math.max(0, 1 - pBull - pBear);
 
+  const now = new Date();
   return {
+    issuedAt: now.toISOString(),
+    resolvesAt: new Date(now.getTime() + horizonDays * 86400_000).toISOString(),
     issuedPrice: spot,
     horizonDays,
     median: priceAtQuantile(0.5),

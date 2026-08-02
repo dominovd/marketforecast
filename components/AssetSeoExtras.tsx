@@ -29,6 +29,21 @@ function buildFaq(asset: Asset): { q: string; a: string }[] {
       q: `What is the current ${asset.name} price today?`,
       a: `${asset.name} (${asset.symbol}) is trading at ${priceStr}, with a 24-hour change of ${change24Str} and a 30-day change of ${asset.change30d > 0 ? '+' : ''}${asset.change30d}%. Prices refresh every 15 minutes from market data APIs.`,
     },
+    // Support/resistance and the covered month are asked for explicitly in
+    // search ("... support resistance levels april 2026"). The numbers already
+    // exist; surfacing them in the FAQ matches the query without needing a
+    // separate page per month.
+    ...(asset.forecast ? [{
+      q: `What are the key support and resistance levels for ${asset.name}?`,
+      a: `The model places resistance at $${asset.forecast.resistance.toLocaleString(undefined, { maximumFractionDigits: 2 })} `
+        + `(${((asset.forecast.resistance / asset.price - 1) * 100).toFixed(1)}% above the current price) and support at `
+        + `$${asset.forecast.support.toLocaleString(undefined, { maximumFractionDigits: 2 })} `
+        + `(${((asset.forecast.support / asset.price - 1) * 100).toFixed(1)}% below). `
+        + `These are the 60-day swing high and low, and they define the boundaries between the bull, base and bear scenarios. `
+        + `This outlook covers the ${asset.forecast.horizonDays} days from `
+        + `${new Date(asset.forecast.issuedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} to `
+        + `${new Date(asset.forecast.resolvesAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`,
+    }] : []),
     {
       q: `What factors influence the ${asset.name} forecast?`,
       a: `Key factors monitored by the model include: ${asset.aiAnalysis.keyFactors.join('; ')}. The forecast also incorporates RSI, MACD, Bollinger Band position, EMA50 distance, and ATR.`,
