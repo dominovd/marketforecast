@@ -14,7 +14,7 @@
 // happen for each scenario to play out. It is explicitly forbidden from
 // inventing its own levels or probabilities.
 import Anthropic from '@anthropic-ai/sdk';
-import { getCached, setCached } from '@/lib/cache/redis';
+import { getCached, setCached, isBuildPhase } from '@/lib/cache/redis';
 import type { QuantForecast } from '@/lib/forecast/quant';
 
 // Bump when the prompt changes so ledger rows stay attributable.
@@ -174,6 +174,21 @@ export async function getAIAnalysis(
   // Re-assemble on every request: the prose is cached for 7 days but the
   // NUMBERS must stay fresh, since the forecast is recomputed from live prices.
   if (cached) return assemble(cached, forecast);
+
+  // Never pay for a result we cannot keep.
+  //
+  // Redis is unavailable during `next build`, so getCached returns null and
+  // setCached is a no-op. Every one of the 43 prerendered pages therefore called
+  // Claude and threw the answer away — 43 calls per deployment, discarded. Two
+  // days of frequent deploys cost $1.98 against a projected $0.46 per MONTH, and
+  // the arithmetic matches almost exactly: ~15 builds x 43 assets x ~970 tokens.
+  //
+  // The templated narrative is built from the same model numbers, so a
+  // build-time render is accurate — just plainer. The first real request
+  // generates the prose properly and caches it for a week.
+  if (isBuildPhase()) {
+    return templatedNarrative(ctx, forecast);
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return templatedNarrative(ctx, forecast);

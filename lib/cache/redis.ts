@@ -28,7 +28,7 @@ function nsKey(key: string): string {
  * Skipping cleanly here costs nothing — a build-time render has no warm cache
  * to hit anyway — and removes both the wasted round-trip and the log spam.
  */
-function isBuildPhase(): boolean {
+export function isBuildPhase(): boolean {
   return process.env.NEXT_PHASE === 'phase-production-build';
 }
 
