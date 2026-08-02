@@ -9,7 +9,8 @@
 // (revalidate = 300) so even without Redis we get static caching.
 import { getCached, setCached } from '@/lib/cache/redis';
 import { getAllCryptoPrices } from '@/lib/api/coingecko';
-import { getCommodityPriceResilient } from '@/lib/api/commodities';
+import { getCommodityPriceResilient, type CommodityPriceResult } from '@/lib/api/commodities';
+import { lastGoodKey } from '@/lib/api/twelvedata';
 import { getFearGreed } from '@/lib/api/feargreed';
 import { ASSETS, ALL_ASSETS_LIST, type Regime } from '@/data/mock-assets';
 
@@ -115,22 +116,41 @@ export async function getHomepageData(): Promise<HomepageData> {
   const COMMODITY_BUDGET_MS = 20000;
   const deadline = Date.now() + COMMODITY_BUDGET_MS;
 
-  const commodityResults: (Awaited<ReturnType<typeof getCommodityPriceResilient>>)[] = [];
-  for (let i = 0; i < commoditySlugs.length; i++) {
+  // Read the shared last-good cache FIRST, before contacting any provider.
+  //
+  // This is the fix for the homepage rendering with zero commodities. Twelve
+  // Data allows 8 credits/minute and the site tracks 10 commodities on it, so a
+  // full cold refresh cannot finish inside a minute. During a build — three
+  // workers, 53 pages, every commodity page calling out — the homepage lost
+  // that race on all five featured assets and the empty result was baked into
+  // the static render. Competing for the same scarce quota was the mistake;
+  // reading what other renders already observed costs one Redis round-trip and
+  // wins every time.
+  const cachedRows = await Promise.all(
+    commoditySlugs.map(slug => getCached<CommodityPriceResult>(lastGoodKey(slug)).catch(() => null))
+  );
+
+  const commodityResults: (CommodityPriceResult | null)[] = [...cachedRows];
+  const missing = commoditySlugs
+    .map((slug, i) => ({ slug, i }))
+    .filter(({ i }) => !commodityResults[i]);
+
+  // Only fetch what the cache could not supply, still under a wall-clock budget
+  // so a slow provider can never fail the build.
+  for (const { slug, i } of missing) {
     if (Date.now() >= deadline) {
-      console.warn(`[homepage] commodity budget exhausted, skipping ${commoditySlugs.slice(i).join(', ')}`);
-      while (commodityResults.length < commoditySlugs.length) commodityResults.push(null);
+      console.warn(`[homepage] budget exhausted before ${slug}`);
       break;
     }
     if (i > 0) await new Promise(r => setTimeout(r, 300));
     try {
       const remaining = deadline - Date.now();
-      commodityResults.push(await Promise.race([
-        getCommodityPriceResilient(commoditySlugs[i]),
+      commodityResults[i] = await Promise.race([
+        getCommodityPriceResilient(slug),
         new Promise<null>(r => setTimeout(() => r(null), Math.max(1000, remaining))),
-      ]));
+      ]);
     } catch {
-      commodityResults.push(null);
+      commodityResults[i] = null;
     }
   }
 
@@ -180,12 +200,17 @@ export async function getHomepageData(): Promise<HomepageData> {
   // Topbar fields are nulled rather than defaulted when unavailable — the UI
   // renders a dash. The old hardcoded '$2.8T' / '58.4%' / 3342 fallbacks were
   // indistinguishable from real figures once on screen.
+  // Gold in the topbar was derived from the gold ROW, so when the row was
+  // dropped the topbar silently showed an em-dash even though a perfectly good
+  // cached price existed. Read the observation directly instead of depending on
+  // whether a table row survived.
   const goldRow = commodity.find(c => c.slug === 'gold');
+  const goldCached = goldRow ? null : await getCached<CommodityPriceResult>(lastGoodKey('gold')).catch(() => null);
   const topbar: HomepageTopbar = {
     totalMarketCap: globalsR.status === 'fulfilled' ? globalsR.value.totalMarketCap : null,
     btcDominance: globalsR.status === 'fulfilled' ? globalsR.value.btcDominance : null,
     fearGreed: fgR.status === 'fulfilled' ? fgR.value : null,
-    goldPrice: goldRow?.price ?? null,
+    goldPrice: goldRow?.price ?? goldCached?.price ?? null,
   };
 
   const data: HomepageData = { crypto, commodity, topbar };

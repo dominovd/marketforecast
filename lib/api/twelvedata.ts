@@ -120,6 +120,21 @@ export async function getCommodityHistory(slug: string, days: number): Promise<P
   return full.slice(full.length - days);
 }
 
+/**
+ * Redis key holding the last successfully observed price for a slug.
+ *
+ * Every successful read writes here, from any caller. That matters because
+ * Twelve Data's free tier allows 8 credits/minute while the site tracks 10
+ * commodities on it — a full cold refresh cannot complete inside a minute, so
+ * during a build (3 workers, 53 pages, every commodity page calling out) the
+ * homepage loses the race and renders with no commodities at all. Sharing
+ * observations through this key means a page that cannot get a fresh quote can
+ * still show a real one instead of an empty table.
+ */
+export function lastGoodKey(slug: string): string {
+  return `td:lastgood:${slug}`;
+}
+
 export async function getCommodityPrice(slug: string): Promise<CommodityPrice> {
   const history = await getCommodityHistory(slug, 35);
   if (history.length < 2) throw new Error(`Not enough data for ${slug}`);
@@ -142,13 +157,18 @@ export async function getCommodityPrice(slug: string): Promise<CommodityPrice> {
     wheat: '$28B', corn: '$31B', sugar: '$14B', coffee: '$22B',
   };
 
-  return {
+  const result: CommodityPrice = {
     price: current,
     change24h: pct(current, prev1d),
     change7d: pct(current, prev7d),
     change30d: pct(current, prev30d),
     volume24h: VOL_EST[slug] ?? '—',
   };
+
+  // Publish the observation for any other renderer that cannot get its own.
+  await setCached(lastGoodKey(slug), { ...result, stale: false, asOf: new Date().toISOString() }, LAST_GOOD_TTL);
+
+  return result;
 }
 
 // Last known GOOD price per slug, kept for a week.
@@ -171,15 +191,13 @@ export interface CommodityPriceResult extends CommodityPrice {
 }
 
 export async function getCommodityPriceResilient(slug: string): Promise<CommodityPriceResult | null> {
-  const lastGoodKey = `td:lastgood:${slug}`;
+  const key = lastGoodKey(slug);
   try {
-    const fresh = await getCommodityPrice(slug);
-    const result: CommodityPriceResult = { ...fresh, stale: false, asOf: new Date().toISOString() };
-    await setCached(lastGoodKey, result, LAST_GOOD_TTL);
-    return result;
+    const fresh = await getCommodityPrice(slug); // also refreshes last-good
+    return { ...fresh, stale: false, asOf: new Date().toISOString() };
   } catch (err) {
     console.error(`[twelvedata] live fetch failed for ${slug}, trying last-good:`, err);
-    const lastGood = await getCached<CommodityPriceResult>(lastGoodKey);
+    const lastGood = await getCached<CommodityPriceResult>(key);
     if (lastGood) return { ...lastGood, stale: true };
     // Nothing real has ever been recorded for this slug — say nothing rather
     // than make something up.

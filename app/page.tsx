@@ -182,6 +182,20 @@ export default async function HomePage() {
           </span>
         </div>
         <div className="card overflow-hidden">
+          {/* An empty table with a "0 assets" badge reads as a broken page. Say
+              what happened instead — the directory below still links every
+              commodity, so the section is not a dead end. */}
+          {commodityAssets.length === 0 && (
+            <div className="px-4 py-6 text-center">
+              <p className="text-sm" style={{ color: '#94a3b8' }}>
+                Commodity quotes are temporarily unavailable.
+              </p>
+              <p className="text-xs mt-1" style={{ color: '#475569' }}>
+                We show nothing rather than a stale or placeholder price. Individual pages are linked below.
+              </p>
+            </div>
+          )}
+          {commodityAssets.length > 0 && (
           <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 px-4 py-3 text-xs font-medium" style={{ color: '#475569', borderBottom: '1px solid #1e2a3a' }}>
             <div className="col-span-4">Asset</div>
             <div className="col-span-2 text-right">Price</div>
@@ -189,6 +203,7 @@ export default async function HomePage() {
             <div className="col-span-2 text-right hidden sm:block">30d</div>
             <div className="col-span-2 text-right hidden md:block">Regime</div>
           </div>
+          )}
           {commodityAssets.filter(Boolean).map((asset, i) => {
             const href = `/commodities/${asset.slug}-price-prediction-2026`;
             return (
