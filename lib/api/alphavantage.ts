@@ -109,11 +109,36 @@ export interface AvPrice {
  */
 export async function getAvPrice(fn: string): Promise<AvPrice> {
   const s = await fetchSeries(fn);
-  const p = s.points.map(x => x.price);
-  if (p.length < 2) throw new Error(`Alpha Vantage ${fn}: not enough observations`);
+  if (s.points.length < 2) throw new Error(`Alpha Vantage ${fn}: not enough observations`);
 
-  const current = p[p.length - 1];
-  const at = (back: number) => p[Math.max(0, p.length - 1 - back)] ?? current;
+  const latest = s.points[s.points.length - 1];
+  const current = latest.price;
+  const latestMs = new Date(latest.date).getTime();
+
+  /**
+   * Price as of N CALENDAR days before the latest observation.
+   *
+   * Counting observations instead — p[length - 1 - n] — is wrong for these
+   * series and was visibly so: EIA publishes on business days only, so 30
+   * observations reach back about 42 calendar days and a "24h" step spans three
+   * days across a weekend. The homepage duly showed crude at -8.16% "24h" and
+   * -8.00% "30d", and the regime classifier, which keys off the 30-day figure,
+   * inherited the error.
+   *
+   * Picking the observation nearest the target date keeps the label honest
+   * regardless of how many trading days happen to fall in the window.
+   */
+  const at = (calendarDaysBack: number): number => {
+    const target = latestMs - calendarDaysBack * 86400_000;
+    let best = s.points[0];
+    let bestGap = Math.abs(new Date(best.date).getTime() - target);
+    for (const pt of s.points) {
+      const gap = Math.abs(new Date(pt.date).getTime() - target);
+      if (gap < bestGap) { best = pt; bestGap = gap; }
+    }
+    return best.price;
+  };
+
   const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round(((a - b) / b) * 10000) / 100);
 
   return {
