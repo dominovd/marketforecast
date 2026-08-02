@@ -130,13 +130,19 @@ export async function getAvPrice(fn: string): Promise<AvPrice> {
    */
   const at = (calendarDaysBack: number): number => {
     const target = latestMs - calendarDaysBack * 86400_000;
-    let best = s.points[0];
-    let bestGap = Math.abs(new Date(best.date).getTime() - target);
+    // Strictly earlier than the latest observation. Without this the nearest
+    // point to "yesterday" is often the latest one itself — when the newest
+    // close is a Monday, yesterday was a Sunday with no data — and the 24h
+    // change would report a flat 0.00% every weekend.
+    let best: AvPoint | null = null;
+    let bestGap = Infinity;
     for (const pt of s.points) {
-      const gap = Math.abs(new Date(pt.date).getTime() - target);
+      const ms = new Date(pt.date).getTime();
+      if (ms >= latestMs) continue;
+      const gap = Math.abs(ms - target);
       if (gap < bestGap) { best = pt; bestGap = gap; }
     }
-    return best.price;
+    return best ? best.price : current;
   };
 
   const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round(((a - b) / b) * 10000) / 100);
