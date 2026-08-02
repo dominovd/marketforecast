@@ -563,7 +563,13 @@ export default function AssetPage({ asset }: { asset: Asset }) {
                 // rel="sponsored" is REQUIRED by Google for affiliate and paid
                 // links, not optional. Leaving these as plain follow links is a
                 // link-spam policy violation and grounds for a manual action.
-                <a key={a.name} href={a.url} target="_blank" rel="sponsored noopener"
+                //
+                // nofollow is carried alongside it belt-and-braces. Google
+                // treats the two as equivalent signals and sponsored alone would
+                // suffice, but other crawlers and audit tools recognise only
+                // nofollow, so the pair costs nothing and removes any ambiguity
+                // about intent.
+                <a key={a.name} href={a.url} target="_blank" rel="sponsored nofollow noopener"
                   className="flex items-center justify-between w-full rounded-lg px-4 py-3 text-sm font-medium text-white transition-all hover:opacity-90"
                   style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb)', border: '1px solid rgba(59,130,246,0.3)' }}>
                   {a.label}
