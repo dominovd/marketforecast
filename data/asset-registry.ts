@@ -31,6 +31,13 @@ export interface AssetMeta {
   // Commodity-only — Twelve Data symbol
   tdSymbol?: string;
   /**
+   * Alpha Vantage commodity function, when that provider has a genuine daily
+   * spot series for this asset. Takes precedence over tdSymbol. Only energy
+   * qualifies: AV's metal and agricultural series are monthly and lag by two
+   * months, which cannot feed the volatility model.
+   */
+  avFunction?: string;
+  /**
    * Set when the tracked instrument is an exchange-traded PROXY rather than the
    * commodity itself. The free Twelve Data plan gates spot metals and energy
    * behind paid tiers, so most commodities can only be tracked via a fund.
@@ -181,19 +188,20 @@ export const ASSET_REGISTRY: AssetMeta[] = [
   // to W&T Offshore Inc., an oil COMPANY trading near $3.50 — valid candles,
   // completely wrong instrument. Likewise "BZ" is Kanzhun Ltd, a Chinese
   // recruitment ADR, not Brent crude. Both were caught by the symbol probe.
-  { slug: 'oil', name: 'Crude Oil', symbol: 'USO', category: 'commodity', icon: '🛢️',
-    tdSymbol: 'USO',
-    proxyNote: 'Tracked via USO (United States Oil Fund). Prices shown are the fund\'s share price, not WTI per barrel.',
+  // Energy moved to Alpha Vantage: genuine spot in real units, daily, decades
+  // of history. No proxy disclosure needed — the number is the commodity's
+  // price. USO/BNO/UNG remain as tdSymbol so the router has a fallback if AV
+  // is unavailable, but they are not the primary source.
+  { slug: 'oil', name: 'Crude Oil', symbol: 'WTI', category: 'commodity', icon: '🛢️',
+    avFunction: 'WTI', tdSymbol: 'USO',
     affiliates: COMMODITY_AFFILIATES('oil'),
     newsKeywords: ['oil', 'crude', 'opec', 'wti', 'energy'] },
-  { slug: 'brent', name: 'Brent Crude Oil', symbol: 'BNO', category: 'commodity', icon: '⛽',
-    tdSymbol: 'BNO',
-    proxyNote: 'Tracked via BNO (United States Brent Oil Fund). Prices shown are the fund\'s share price, not Brent per barrel.',
+  { slug: 'brent', name: 'Brent Crude Oil', symbol: 'BRENT', category: 'commodity', icon: '⛽',
+    avFunction: 'BRENT', tdSymbol: 'BNO',
     affiliates: COMMODITY_AFFILIATES('brent'),
     newsKeywords: ['brent', 'oil', 'crude', 'opec', 'energy'] },
-  { slug: 'naturalgas', name: 'Natural Gas', symbol: 'UNG', category: 'commodity', icon: '🔥',
-    tdSymbol: 'UNG',
-    proxyNote: 'Tracked via UNG (United States Natural Gas Fund). Prices shown are the fund\'s share price, not gas per MMBtu.',
+  { slug: 'naturalgas', name: 'Natural Gas', symbol: 'NATGAS', category: 'commodity', icon: '🔥',
+    avFunction: 'NATURAL_GAS', tdSymbol: 'UNG',
     affiliates: COMMODITY_AFFILIATES('natural-gas'),
     newsKeywords: ['natural gas', 'lng', 'natgas', 'gas price', 'energy'] },
 

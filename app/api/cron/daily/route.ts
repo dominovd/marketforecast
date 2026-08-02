@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import { CRYPTO_REGISTRY, COMMODITY_REGISTRY } from '@/data/asset-registry';
 import { getCoinPriceCached, getCoinHistory } from '@/lib/api/coingecko';
-import { getCommodityPriceResilient, getCommodityHistory } from '@/lib/api/twelvedata';
+import { getCommodityPriceResilient, getCommodityHistory } from '@/lib/api/commodities';
 import { buildForecast } from '@/lib/forecast/quant';
 import {
   calcRSI, calcMACD, calcBBPosition, calcEMA50Distance, calcATR, classifyRegime,
@@ -68,7 +68,7 @@ export async function GET(req: Request) {
     // three-metal basket) and coffee lost its free source when the JO ETN was
     // delisted. Reporting them as failures would mean this job cries wolf on
     // every single run, and a real failure would be lost in the noise.
-    if (!asset.isCrypto && !asset.tdSymbol) {
+    if (!asset.isCrypto && !asset.tdSymbol && !asset.avFunction) {
       skipped.push(`${asset.slug} (no data source configured — intentional)`);
       continue;
     }

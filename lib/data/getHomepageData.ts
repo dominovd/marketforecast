@@ -9,7 +9,7 @@
 // (revalidate = 300) so even without Redis we get static caching.
 import { getCached, setCached } from '@/lib/cache/redis';
 import { getAllCryptoPrices } from '@/lib/api/coingecko';
-import { getCommodityPriceResilient } from '@/lib/api/twelvedata';
+import { getCommodityPriceResilient } from '@/lib/api/commodities';
 import { getFearGreed } from '@/lib/api/feargreed';
 import { ASSETS, ALL_ASSETS_LIST, type Regime } from '@/data/mock-assets';
 

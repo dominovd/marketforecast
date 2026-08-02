@@ -11,10 +11,10 @@ import { getAssetMeta, CRYPTO_SLUGS, COMMODITY_SLUGS, type AssetMeta } from '@/d
 
 // Crypto-specific imports
 import { getCoinPriceCached, getCoinHistory } from '@/lib/api/coingecko';
-// Commodity-specific imports — switched from Alpha Vantage to Twelve Data
-// (free 800 req/day, supports XPT/XPD precious metals + futures + agri ETFs).
-// alphavantage.ts is left in lib/api/ as historical reference; not imported.
-import { getCommodityPrice, getCommodityHistory } from '@/lib/api/twelvedata';
+// Commodities go through a router that picks the provider per asset: Alpha
+// Vantage for energy (real spot, daily) and Twelve Data for gold spot and the
+// ETF proxies. Callers deliberately cannot tell which answered.
+import { getCommodityPrice, getCommodityHistory } from '@/lib/api/commodities';
 
 // We now attach the same 180-day daily-close history that feeds the indicators
 // directly onto the returned asset (as `priceHistory` on the Asset interface),
@@ -145,6 +145,11 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
     priceHistory: history.map(p => ({ date: p.date, price: p.price })),
     forecast: forecast ?? undefined,
     proxyNote: meta.proxyNote,
+    // EIA-sourced energy series publish with a lag of several days. The site
+    // claims prices refresh every 15 minutes, which is true of the fetch but
+    // not of the underlying observation — so surface the observation date and
+    // let the page say when the number is actually from.
+    dataAsOf: (prices as { asOf?: string }).asOf,
   };
 
   // Matches the 900s ISR on the asset routes. A shorter TTL here would expire

@@ -58,6 +58,12 @@ export interface Asset {
   // the commodity itself. Surfaced in the UI so the price level is not
   // mistaken for spot.
   proxyNote?: string;
+  /**
+   * ISO date of the underlying observation, when the source lags. The energy
+   * series come from EIA via Alpha Vantage and run several days behind, so the
+   * page must state when the number is from rather than imply it is live.
+   */
+  dataAsOf?: string;
 }
 
 export function generatePriceHistory(basePrice: number, volatility: number, trend: number, days: number) {

@@ -125,7 +125,7 @@ export async function GET(req: Request) {
 
   const { CRYPTO_REGISTRY, COMMODITY_REGISTRY } = await import('@/data/asset-registry');
   const { getAllCryptoPrices, getCoinHistory } = await import('@/lib/api/coingecko');
-  const { getCommodityHistory } = await import('@/lib/api/twelvedata');
+  const { getCommodityHistory } = await import('@/lib/api/commodities');
 
   const findings: Finding[] = [];
 

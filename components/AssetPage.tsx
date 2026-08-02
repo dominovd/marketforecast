@@ -246,6 +246,23 @@ export default function AssetPage({ asset }: { asset: Asset }) {
         </div>
       </div>
 
+      {/* Observation date, shown only when the source actually lags. Claiming a
+          15-minute refresh is true of the fetch but not of an EIA series that
+          publishes days behind. */}
+      {asset.dataAsOf && (() => {
+        const lagDays = Math.floor((Date.now() - new Date(asset.dataAsOf).getTime()) / 86400_000);
+        if (lagDays < 2) return null;
+        return (
+          <p className="text-xs mb-4" style={{ color: '#94a3b8' }}>
+            Latest published observation:{' '}
+            <strong style={{ color: '#cbd5e1' }}>
+              {new Date(asset.dataAsOf).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            </strong>
+            {' '}({lagDays} days ago). Official energy price series are released with a lag.
+          </p>
+        );
+      })()}
+
       {/* Proxy disclosure. Placed above the fold, immediately under the price,
           because the number directly above it is NOT the commodity's price and
           a reader who misses that is misinformed by everything below. */}
