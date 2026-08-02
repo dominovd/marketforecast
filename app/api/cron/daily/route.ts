@@ -82,6 +82,22 @@ export async function GET(req: Request) {
         prices = (await getCommodityHistory(asset.slug, 180)).map(p => p.price);
       }
 
+      // Warm the shared price cache while the history is hot.
+      //
+      // This costs nothing upstream: getCommodityPriceResilient derives its
+      // figures from the same 24h-cached series we just pulled, so the call
+      // lands in Redis rather than at the provider. Doing it here means the
+      // homepage — which reads that cache first — never has to compete for
+      // Twelve Data's 8 credits/minute, which is what left it rendering two
+      // commodities out of five.
+      if (!asset.isCrypto) {
+        try {
+          await getCommodityPriceResilient(asset.slug);
+        } catch (err) {
+          console.error(`[cron] price cache warm failed for ${asset.slug}:`, err);
+        }
+      }
+
       const forecast = buildForecast(prices, { horizonDays: 30 });
       if (!forecast) {
         skipped.push(`${asset.slug} (insufficient history: ${prices.length}pts)`);

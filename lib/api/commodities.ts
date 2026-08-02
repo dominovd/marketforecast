@@ -21,10 +21,12 @@ import {
   getCommodityHistory as tdHistory,
   getCommodityPrice as tdPrice,
   getCommodityPriceResilient as tdPriceResilient,
+  lastGoodKey,
   type CommodityPriceResult,
 } from '@/lib/api/twelvedata';
 
 export type { CommodityPriceResult };
+export { lastGoodKey };
 
 export interface PricePoint { date: string; price: number }
 
@@ -55,7 +57,8 @@ export async function getCommodityPriceResilient(slug: string): Promise<Commodit
   if (!fn) return tdPriceResilient(slug);
 
   const { getCached, setCached } = await import('@/lib/cache/redis');
-  const lastGoodKey = `av:lastgood:${slug}`;
+  // Same key both providers use — see lastGoodKey().
+  const key = lastGoodKey(slug);
   try {
     const fresh = await getAvPrice(fn);
     const result: CommodityPriceResult = {
@@ -67,11 +70,11 @@ export async function getCommodityPriceResilient(slug: string): Promise<Commodit
       stale: false,
       asOf: fresh.asOf,
     };
-    await setCached(lastGoodKey, result, 7 * 24 * 60 * 60);
+    await setCached(key, result, 7 * 24 * 60 * 60);
     return result;
   } catch (err) {
     console.error(`[commodities] Alpha Vantage failed for ${slug}, trying last-good:`, err);
-    const lastGood = await getCached<CommodityPriceResult>(lastGoodKey);
+    const lastGood = await getCached<CommodityPriceResult>(key);
     return lastGood ? { ...lastGood, stale: true } : null;
   }
 }

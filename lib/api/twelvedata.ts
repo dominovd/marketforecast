@@ -132,7 +132,11 @@ export async function getCommodityHistory(slug: string, days: number): Promise<P
  * still show a real one instead of an empty table.
  */
 export function lastGoodKey(slug: string): string {
-  return `td:lastgood:${slug}`;
+  // Provider-NEUTRAL on purpose. This key was briefly `td:lastgood:` while the
+  // Alpha Vantage branch wrote `av:lastgood:`, so the homepage — which reads
+  // one key — could never see an energy observation and silently dropped those
+  // rows. The cache is keyed by what the price IS, not by who supplied it.
+  return `commodity:lastgood:${slug}`;
 }
 
 export async function getCommodityPrice(slug: string): Promise<CommodityPrice> {
