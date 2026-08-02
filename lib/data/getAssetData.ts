@@ -6,7 +6,9 @@ import { getAIAnalysis, templatedNarrative, type AssetContext } from '@/lib/ai/a
 import { buildForecast } from '@/lib/forecast/quant';
 import { getNewsForAsset, NewsItem } from '@/lib/api/news';
 import { getFearGreed } from '@/lib/api/feargreed';
-import { ASSETS, type Asset } from '@/data/mock-assets';
+// ASSETS is deliberately NOT imported. Hardcoded prices must never reach a
+// page again — every fallback path now degrades to an explicit empty state.
+import { type Asset } from '@/data/mock-assets';
 import { getAssetMeta, CRYPTO_SLUGS, COMMODITY_SLUGS, type AssetMeta } from '@/data/asset-registry';
 
 // Crypto-specific imports
@@ -59,15 +61,19 @@ export async function getAssetData(slug: string): Promise<AssetWithHistory | nul
     isCrypto ? getFearGreed() : Promise.resolve(null),
   ]);
 
-  // If we can't even get the current price → fall back to a graceful surface.
-  // Prefer the hand-curated ASSETS mock for the 11 original slugs (richer copy);
-  // for newly-added slugs, build a minimal placeholder from registry meta.
-  // CRITICAL: do NOT write the placeholder to Redis — otherwise a transient
-  // CoinGecko 429 locks the page in placeholder mode for the full 5min TTL.
+  // No price means no page content. Previously this returned the hand-curated
+  // ASSETS mock, which was the single worst failure mode in the codebase: the
+  // oil page published \$74.82 — a number typed into mock-assets.ts by hand —
+  // while the actual price was near \$85, and because the mock carries no
+  // priceHistory the chart fell through to a procedural random walk that drew a
+  // DIFFERENT fake series on every refresh. Invented data that looks authentic
+  // is worse than an obviously missing page.
+  //
+  // The placeholder carries price 0, which the UI renders as an explicit
+  // unavailable state. Deliberately not cached: a transient 429 must not pin
+  // the page in that state for the full TTL.
   if (pricesR.status !== 'fulfilled') {
     console.error(`[getAssetData] Critical: price fetch failed for ${slug}:`, pricesR.reason);
-    const handCurated = ASSETS[slug];
-    if (handCurated) return handCurated as AssetWithHistory;
     return buildPlaceholder(meta);
   }
   const prices = pricesR.value;

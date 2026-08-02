@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   ComposedChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { Asset, generatePriceHistory, Regime, Sentiment } from '@/data/mock-assets';
+import { Asset, Regime, Sentiment } from '@/data/mock-assets';
 
 function fmt(n: number, decimals = 2) {
   // Auto-scale precision for very small magnitudes (sub-dollar coins, MACD, ATR
@@ -122,13 +123,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function AssetPage({ asset }: { asset: Asset }) {
   const [period, setPeriod] = useState<30 | 90 | 180>(90);
 
-  // Prefer the real 180-day daily-close history attached by getAssetData().
-  // Fall back to the procedural random walk only if the upstream API failed
-  // and getAssetData returned a placeholder asset with no history.
-  const priceHistory = useMemo(() => {
-    if (asset.priceHistory && asset.priceHistory.length > 0) return asset.priceHistory;
-    return generatePriceHistory(asset.price, asset.price * 0.028, asset.change30d / 100, 180);
-  }, [asset.slug, asset.priceHistory, asset.price, asset.change30d]);
+  // Real history only. The procedural generator that used to back this up drew
+  // a different random series on every render — a chart that changed shape on
+  // refresh, which is a lie told convincingly. No history means no chart.
+  const priceHistory = asset.priceHistory ?? [];
+  const hasData = priceHistory.length > 0 && asset.price > 0;
 
   const history = priceHistory.slice(-period);
   const isUp = asset.change24h >= 0;
@@ -197,6 +196,35 @@ export default function AssetPage({ asset }: { asset: Asset }) {
     { label: 'Market Cap', value: asset.marketCap || '—', color: '#3b82f6', sub: 'Total market value' },
     { label: '24h Volume', value: asset.volume24h, color: '#8b5cf6', sub: 'Trading volume' },
   ];
+
+  // Explicit unavailable state. The alternative — rendering zeros, or the
+  // hand-written mock this used to fall back to — produces a page that looks
+  // authoritative and is wrong, which is the failure mode this whole project
+  // has been digging out of.
+  if (!hasData) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4"
+          style={{ background: '#1e2a3a', border: '1px solid #1e2a3a' }}>{asset.icon}</div>
+        <h1 className="text-2xl font-bold text-white mb-2">{asset.name}</h1>
+        <p className="text-sm mb-6" style={{ color: '#64748b' }}>{asset.symbol}</p>
+        <div className="card p-6" style={{ borderColor: 'rgba(245,158,11,0.25)' }}>
+          <p className="font-medium mb-2" style={{ color: '#f59e0b' }}>Price data unavailable</p>
+          <p className="text-sm" style={{ color: '#94a3b8' }}>
+            We could not retrieve a confirmed price for {asset.name} from our data providers, so this page
+            is showing nothing rather than an estimate. Forecasts are only published when they rest on real
+            observations.
+          </p>
+          <p className="text-xs mt-3" style={{ color: '#475569' }}>
+            This usually resolves within a few minutes. Provider rate limits are the most common cause.
+          </p>
+        </div>
+        <Link href="/" className="inline-block mt-6 text-sm hover:underline" style={{ color: '#60a5fa' }}>
+          ← Back to all markets
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
