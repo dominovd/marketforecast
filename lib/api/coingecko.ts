@@ -187,7 +187,12 @@ export async function getCoinHistory(slug: string, days: number): Promise<OHLCPo
   const raw = await fetchCG(`/coins/${id}/market_chart?vs_currency=usd&days=${FETCH_DAYS}`) as {
     prices: [number, number][];
   };
-  const full = raw.prices.map(([ts, price]) => ({
+
+  // Only de-duplication happens here. Outliers are deliberately NOT edited out
+  // of the series — see the note on despiking below.
+  const cleaned = dedupeByDay(raw.prices);
+
+  const full = cleaned.map(({ ts, price }) => ({
     date: new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     price,
     high: price, // market_chart doesn't expose OHLC; synthesize for type compat
@@ -200,6 +205,45 @@ export async function getCoinHistory(slug: string, days: number): Promise<OHLCPo
 
   return full.length <= days ? full : full.slice(full.length - days);
 }
+
+interface TsPoint { ts: number; price: number }
+
+/**
+ * Collapse observations that fall on the same UTC day, keeping the latest.
+ *
+ * /market_chart appends the current, still-forming datapoint on top of the
+ * completed daily closes, so the newest two entries routinely share a date.
+ * That produced a visible duplicate on the chart's x-axis ("Aug 1" twice) and,
+ * worse, an extra return of near-zero between them that quietly dampened the
+ * volatility estimate.
+ */
+function dedupeByDay(prices: [number, number][]): TsPoint[] {
+  const byDay = new Map<string, TsPoint>();
+  for (const [ts, price] of prices) {
+    if (!isFinite(price) || price <= 0) continue;
+    byDay.set(new Date(ts).toISOString().slice(0, 10), { ts, price });
+  }
+  return [...byDay.values()].sort((a, b) => a.ts - b.ts);
+}
+
+// On NOT despiking.
+//
+// Bitcoin's series contains Feb 5 = 73,059 → Feb 6 = 62,778 → Feb 7 = 70,272,
+// which looks like a bad tick. A threshold-based repair was written and then
+// tested against hand-built cases, and it failed both ways: it missed this very
+// point (the rebound is +11.94%, just under a 12% trigger) while "repairing" a
+// plausible V-shaped bounce that should have been left alone.
+//
+// Tightening the constants would only fit them to the one example we happen to
+// have seen. On daily closes a feed glitch and a liquidation cascade that
+// retraces are genuinely not separable, and silently rewriting a real crash is
+// a far worse failure than displaying an ugly one.
+//
+// The actual damage from an outlier is not the chart — it is the inflated
+// volatility estimate, which widens every interval we publish. That is fixed
+// where it belongs, in the estimator: see winsorised returns in
+// lib/forecast/quant.ts. The published series stays exactly as the provider
+// reported it.
 
 // Default to 180 days so all indicators (RSI/MACD/EMA50/ATR) get enough
 // daily-granularity data points. Callers can override.

@@ -200,11 +200,50 @@ export function logReturns(prices: number[]): number[] {
 }
 
 /**
+ * Clamp extreme returns to a robust multiple of the median absolute deviation.
+ *
+ * Upstream feeds occasionally emit a bad tick — Bitcoin's history contains a
+ * −14% day that fully reverses the next morning. Squared into an EWMA, one such
+ * point measurably widens every interval the site publishes, so a data glitch
+ * silently becomes a claim about the market.
+ *
+ * Winsorising rather than deleting is the conservative choice: a genuine crash
+ * still registers as a large move and still raises the volatility estimate — it
+ * is capped, not discarded. And because the cap is derived from the sample's own
+ * dispersion, it adapts to the asset instead of encoding a guess about what
+ * counts as "too big" for Bitcoin versus for gold.
+ *
+ * MAD is scaled by 1.4826 so that, for normally distributed data, it estimates
+ * the same quantity as the standard deviation.
+ */
+function winsoriseReturns(returns: number[], madMultiple = 5): number[] {
+  if (returns.length < 8) return returns;
+
+  const sorted = [...returns].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const devs = returns.map(r => Math.abs(r - median)).sort((a, b) => a - b);
+  const mad = devs[Math.floor(devs.length / 2)] * 1.4826;
+  if (!isFinite(mad) || mad <= 0) return returns;
+
+  const cap = madMultiple * mad;
+  return returns.map(r => {
+    const d = r - median;
+    if (d > cap) return median + cap;
+    if (d < -cap) return median - cap;
+    return r;
+  });
+}
+
+/**
  * EWMA volatility of daily log returns (RiskMetrics). Recent moves get more
  * weight than a flat trailing window, so the model reacts to volatility
  * regime changes instead of averaging them away.
+ *
+ * Returns are winsorised first so a single bad tick cannot masquerade as a
+ * volatility regime change.
  */
-export function ewmaVol(returns: number[], lambda = EWMA_LAMBDA): number {
+export function ewmaVol(rawReturns: number[], lambda = EWMA_LAMBDA): number {
+  const returns = winsoriseReturns(rawReturns);
   if (returns.length < 2) return 0;
   // Seed with the sample variance of the first chunk, then update forward.
   const seedLen = Math.min(20, returns.length);
