@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import { ASSETS } from '@/data/mock-assets';
 import { getAssetData } from '@/lib/data/getAssetData';
 import { getAssetMeta, CRYPTO_SLUGS } from '@/data/asset-registry';
 import AssetPage from '@/components/AssetPage';
@@ -48,21 +47,20 @@ export default async function CryptoAssetPage({ params }: { params: Promise<{ sl
     asset = null;
   }
 
-  if (!asset) {
-    const mock = ASSETS[key];
-    if (mock) {
-      asset = mock as Parameters<typeof AssetPage>[0]['asset'];
-    } else {
-      // No mock available for newly-added slugs — bail to 404 rather than render empty.
-      // In practice CoinGecko free tier rarely fails; a transient miss will recover on next ISR.
-      notFound();
-    }
-  }
+  // No mock fallback — see the note in app/commodities/[slug]/page.tsx.
+  // getAssetData degrades to a placeholder that renders as an explicit
+  // unavailable state, which is the honest outcome for a transient miss.
+  if (!asset) notFound();
+
+  // Suppress the FAQ without data: it asserts probabilities and indicator
+  // values that would be placeholder defaults, and structured Q&A is precisely
+  // what search engines lift into results.
+  const hasData = asset.price > 0 && (asset.priceHistory?.length ?? 0) > 0;
 
   return (
     <>
       <AssetPage asset={asset} />
-      <AssetSeoExtras asset={asset} kind="crypto" />
+      {hasData && <AssetSeoExtras asset={asset} kind="crypto" />}
     </>
   );
 }

@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import { ASSETS } from '@/data/mock-assets';
 import { getAssetData } from '@/lib/data/getAssetData';
 import { getAssetMeta, COMMODITY_SLUGS } from '@/data/asset-registry';
 import AssetPage from '@/components/AssetPage';
@@ -42,27 +41,30 @@ export default async function CommodityAssetPage({ params }: { params: Promise<{
   const meta = getAssetMeta(key);
   if (!meta || meta.category !== 'commodity') notFound();
 
-  // Try real data first, fall back to mock if available
+  // No mock fallback. getAssetData already degrades to a placeholder carrying
+  // price 0, which AssetPage renders as an explicit unavailable state; reaching
+  // for ASSETS here would reintroduce the hardcoded prices we just removed from
+  // the data layer.
   let asset;
   try {
     asset = await getAssetData(key);
   } catch {
     asset = null;
   }
+  if (!asset) notFound();
 
-  if (!asset) {
-    const mock = ASSETS[key];
-    if (mock) {
-      asset = mock as Parameters<typeof AssetPage>[0]['asset'];
-    } else {
-      notFound();
-    }
-  }
+  // The FAQ block asserts probabilities, RSI values and price targets. With no
+  // observations behind them those are placeholder defaults — the oil page
+  // said "price data unavailable" at the top while the FAQ underneath confidently
+  // claimed a 30% bull probability and an RSI of 50. Structured Q&A is also
+  // exactly what search engines lift into results, so publishing it without data
+  // is worse than publishing nothing.
+  const hasData = asset.price > 0 && (asset.priceHistory?.length ?? 0) > 0;
 
   return (
     <>
       <AssetPage asset={asset} />
-      <AssetSeoExtras asset={asset} kind="commodity" />
+      {hasData && <AssetSeoExtras asset={asset} kind="commodity" />}
     </>
   );
 }
