@@ -14,7 +14,7 @@
 // happen for each scenario to play out. It is explicitly forbidden from
 // inventing its own levels or probabilities.
 import Anthropic from '@anthropic-ai/sdk';
-import { getCached, setCached, isBuildPhase } from '@/lib/cache/redis';
+import { getCached, setCached, isBuildPhase, incrDailyCounter } from '@/lib/cache/redis';
 import type { QuantForecast } from '@/lib/forecast/quant';
 
 // Bump when the prompt changes so ledger rows stay attributable.
@@ -193,14 +193,46 @@ export async function getAIAnalysis(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return templatedNarrative(ctx, forecast);
 
-  const client = new Anthropic({ apiKey });
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: buildPrompt(ctx, forecast) }],
-  });
+  // A failed generation must be remembered, or we pay for it forever.
+  //
+  // The old code returned the templated narrative on a parse error and cached
+  // nothing, so the next request retried immediately — bounded only by the
+  // 900s asset cache, that is up to 96 paid calls per day per affected asset.
+  // Two assets whose output happened not to parse would account for the ~115
+  // calls/day the billing showed after the build-time leak was closed.
+  //
+  // The cooldown is short enough to recover on its own and long enough that a
+  // systematic failure cannot become a billing incident.
+  const FAILURE_COOLDOWN = 6 * 60 * 60;
+  const rememberFailure = async (why: string) => {
+    console.error(`[ai] ${slug}: ${why} — backing off for ${FAILURE_COOLDOWN / 3600}h`);
+    await setCached(`${cacheKey}:failed`, { why, at: Date.now() }, FAILURE_COOLDOWN);
+  };
 
-  const text = message.content[0].type === 'text' ? message.content[0].text : '';
+  // Respect an existing cooldown before spending anything.
+  const cooling = await getCached<{ why: string }>(`${cacheKey}:failed`);
+  if (cooling) return templatedNarrative(ctx, forecast);
+
+  // Counted BEFORE the request, so a call that fails still shows up. Billing
+  // charges for attempts, and a metric that only counts successes would hide
+  // exactly the failure mode that costs money.
+  await incrDailyCounter('ai-calls');
+
+  let text: string;
+  try {
+    const client = new Anthropic({ apiKey });
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: buildPrompt(ctx, forecast) }],
+    });
+    text = message.content[0].type === 'text' ? message.content[0].text : '';
+  } catch (err) {
+    // Rate limits and overloads land here. Without the cooldown these also
+    // retried on every single render.
+    await rememberFailure(err instanceof Error ? err.message.slice(0, 120) : 'api error');
+    return templatedNarrative(ctx, forecast);
+  }
 
   let narrative: RawNarrative;
   try {
@@ -209,6 +241,7 @@ export async function getAIAnalysis(
     if (!parsed.summary || !parsed.bull?.condition) throw new Error('incomplete narrative');
     narrative = parsed;
   } catch {
+    await rememberFailure('unparseable response');
     return templatedNarrative(ctx, forecast);
   }
 

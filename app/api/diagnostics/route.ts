@@ -219,6 +219,11 @@ export async function GET(req: Request) {
     endToEnd.error = err instanceof Error ? err.message : String(err);
   }
 
+  // Actual paid-API volume, so cost questions stop being answered by
+  // reverse-engineering the billing page.
+  const { readDailyCounters } = await import('@/lib/cache/redis');
+  const aiCallsPerDay = await readDailyCounters('ai-calls', 5);
+
   const failing = Object.entries(probes).filter(([, p]) => !p.ok).map(([k]) => k);
   const warned = Object.entries(probes).filter(([, p]) => p.warning).map(([k]) => k);
 
@@ -231,6 +236,9 @@ export async function GET(req: Request) {
           ? `ok (throttled: ${warned.join(', ')})`
           : 'all probes ok',
       env,
+      // Expected steady state is ~6/day: 43 assets on a 7-day narrative cache.
+      // Anything near 100 means the cache is not holding.
+      aiCallsPerDay,
       relevantEnvVarNamesPresent: relevant,
       probes,
       endToEnd,

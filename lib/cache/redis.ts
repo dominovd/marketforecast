@@ -47,6 +47,40 @@ export function getRedis(): Redis {
   return redis;
 }
 
+/**
+ * Increment a daily counter and return the new value.
+ *
+ * Exists because paid-API volume was being inferred from the billing page,
+ * which is slow, coarse, and twice led to confident wrong diagnoses. Counting
+ * the calls directly turns "roughly a thousand calls, probably from builds"
+ * into a number anyone can read.
+ */
+export async function incrDailyCounter(name: string, ttlSeconds = 7 * 24 * 60 * 60): Promise<number> {
+  if (isBuildPhase()) return 0;
+  try {
+    const r = getRedis();
+    const key = nsKey(`counter:${name}:${new Date().toISOString().slice(0, 10)}`);
+    const n = await r.incr(key);
+    if (n === 1) await r.expire(key, ttlSeconds);
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
+/** Read the last `days` daily counts, newest first. */
+export async function readDailyCounters(name: string, days = 5): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  try {
+    const r = getRedis();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10);
+      out[d] = (await r.get<number>(nsKey(`counter:${name}:${d}`))) ?? 0;
+    }
+  } catch { /* observability must never break a page */ }
+  return out;
+}
+
 export async function getCached<T>(key: string): Promise<T | null> {
   if (isBuildPhase()) return null;
   try {
